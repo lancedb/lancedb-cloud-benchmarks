@@ -9,14 +9,7 @@ dependencies = [
     "datasets",
     "lancedb",
     "tqdm",
-#    "pandas~=2.1",
-#    "polars~=0.19",
-#    "numpy<2.0.0",
-#    "pyarrow>=12,<15.0.1",
     "pyarrow",
-#    "pytest",
-#    "pytest-random-order~=1.1",
-#    "backoff~=2.0",
     "backoff"
 ]
 
