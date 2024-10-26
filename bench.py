@@ -163,7 +163,7 @@ def _convert_dataset(schema, dataset: str) -> Iterable[pa.RecordBatch]:
         )
 
 
-def _query_table(table, num_queries: int, warmup_queries=1000):
+def _query_table(table, num_queries: int, warmup_queries=100):
     # log a warning if data is not fully indexed
     for idx in table.list_indices()["indexes"]:
         stats = table.index_stats(idx["index_name"])

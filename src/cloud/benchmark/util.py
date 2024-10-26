@@ -44,7 +44,7 @@ def await_indices(
     for u in unindexed_rows:
         if u != 0:
             raise ValueError(
-                f"still waiting for unindexed rows to be 0 " f"(current: {u})"
+                f"still waiting for unindexed rows to be 0 (current: {u})"
             )
 
     return result_indices
