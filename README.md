@@ -37,7 +37,7 @@ Ingest the dataset into 4 tables and run 10k queries with a custom table prefix:
 
 Run query benchmark only against existing tables:
 
-`uv run bench.py -t 4 -q 10000 --no-ingest`
+`uv run bench.py -t 4 -q 10000 --no-ingest --no-index`
 
 
 ### Help

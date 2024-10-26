@@ -11,7 +11,6 @@ import lancedb
 import numpy as np
 import pyarrow as pa
 from datasets import load_dataset, DownloadConfig
-from tqdm import tqdm
 
 from cloud.benchmark.util import print_percentiles, await_indices
 
@@ -80,20 +79,27 @@ def _open_tables(
 
 def _ingest(tables: list[RemoteTable], dataset: str, batch_size: int):
     # TODO: ingest the datasets in parallel in separate processes?
+    start = time.time()
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(tables)) as executor:
         futures = []
 
         for table in tables:
             futures.append(executor.submit(_ingest_table, dataset, table, batch_size))
-        [future.result() for future in futures]
+        results = [future.result() for future in futures]
+
+        total_s = time.time() - start
+        total_rows = sum(results)
+        print(
+            f"ingested {total_rows} rows in all tables in {total_s:.1f}s. average: {total_rows / total_s:.1f}rows/s"
+        )
 
 
-def _ingest_table(dataset: str, table: RemoteTable, batch_size: int):
+def _ingest_table(dataset: str, table: RemoteTable, batch_size: int) -> int:
     # todo: support batch size > 1000
     add_times = []
     begin = time.time()
     total_rows = 0
-    for batch in tqdm(_convert_dataset(table.schema, dataset)):
+    for batch in _convert_dataset(table.schema, dataset):
         for slice in _split_record_batch(batch, batch_size):
             start_time = time.time()
             _add_batch(table, batch)
@@ -109,6 +115,7 @@ def _ingest_table(dataset: str, table: RemoteTable, batch_size: int):
         f"{table.name}: ingested {total_rows} rows in {total_s}s. average: {total_rows / total_s:.1f}rows/s"
     )
     print_percentiles(add_times)
+    return total_rows
 
 
 def _add_batch(table, batch):
