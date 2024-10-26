@@ -122,8 +122,15 @@ def _split_record_batch(record_batch, batch_size):
 
 
 def _query_tables(tables: list[RemoteTable], num_queries: int):
-    for table in tables:
-        _query_table(table, num_queries)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(tables)) as executor:
+        futures = []
+
+        for table in tables:
+            futures.append(executor.submit(_query_table, table, num_queries))
+        [future.result() for future in futures]
+
+    # for table in tables:
+    #     _query_table(table, num_queries)
 
 
 def _create_vector_index(tables: list[RemoteTable], column_name: str):
@@ -180,7 +187,7 @@ def _query_table(table, num_queries: int, warmup_queries=100):
 
     diffs = []
     begin = time.time()
-    for _ in tqdm(range(num_queries)):
+    for _ in range(num_queries):
         start_time = time.time()
         _query(table)
         elapsed = int((time.time() - start_time) * 1000)
