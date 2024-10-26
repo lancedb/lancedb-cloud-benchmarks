@@ -165,22 +165,22 @@ def _convert_dataset(schema, dataset: str) -> Iterable[pa.RecordBatch]:
 
 def _query_table(table, num_queries: int, warmup_queries=100):
     # log a warning if data is not fully indexed
+    total_rows = table.count_rows()
     for idx in table.list_indices()["indexes"]:
         stats = table.index_stats(idx["index_name"])
-        total_rows = table.count_rows()
         if total_rows != stats["num_indexed_rows"]:
             print(
                 f"{table.name}: warning: indexing is not complete, query performance may be degraded. "
                 f"total rows: {total_rows} index: {stats}"
             )
 
-    print(f"{table.name}: starting query test. {num_queries=} {warmup_queries=}")
+    print(f"{table.name}: starting query test. {num_queries=} {warmup_queries=} {total_rows=}")
     for _ in range(warmup_queries):
         _query(table)
 
     diffs = []
     begin = time.time()
-    for _ in range(num_queries):
+    for _ in tqdm(range(num_queries)):
         start_time = time.time()
         _query(table)
         elapsed = int((time.time() - start_time) * 1000)
