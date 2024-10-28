@@ -1,0 +1,18 @@
+[project]
+name = "lancedb-cloud-benchmarks"
+version = "0.1.0"
+description = ""
+authors = [{ name = "LanceDB Devs", email = "dev@lancedb.com" }]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "datasets",
+    "lancedb",
+    "tqdm",
+    "pyarrow",
+    "backoff"
+]
+
+[tool.uv]
+dev-dependencies = [
+]
