@@ -18,6 +18,8 @@ Further metrics can be gathered by the [LanceDB team](mailto:contact@lancedb.com
 
 `curl -LsSf https://astral.sh/uv/install.sh | sh`
 
+Note: on some systems, you may need to install clang (i.e. `sudo yum install clang`)
+
 2. Configure environment
 ```
 export LANCEDB_API_KEY=<your api key>`
@@ -55,15 +57,13 @@ At high traffic levels, ingestion and query performance may be limited in a sing
 to larger aggregate numbers by using multiple processes or even distributing across multiple VMs. In this case, the result metrics will need to be aggregated
 to get the total QPS and throughput.
 
-i.e.
-Run 4 query benchmarks in separate processes (bash):
+i.e. Run 4 query benchmarks in separate processes with 4 tables each with table name prefix 'my-prefix' (bash):
 ```bash
-./multi.sh 2 "uv run bench.py -t 4 -q 10000 --no-ingest --no-index"
+./multi.sh 4 my-prefix "uv run bench.py -t 4 -q 10000 --no-ingest --no-index"
 ```
 
-This technique can also be used to ingest to multiple tables in parallel using a table prefix per process:
+This technique can also be used for high-throughput ingestion to multiple tables in parallel using a table prefix per process:
+i.e. Ingest to 50 tables in parallel across 10 processes with prefix 'high-throughput' (bash):
 ```bash
-cmd1="uv run bench.py -t 4 -p process1"
-cmd2="uv run bench.py -t 4 -p process2"
-$cmd1 & $cmd2
+./multi.sh 10 high-throughput "uv run bench.py -t 5"
 ```

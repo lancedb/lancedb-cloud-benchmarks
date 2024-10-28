@@ -236,7 +236,7 @@ def _query_table(table: RemoteTable, num_queries: int, warmup_queries=100):
         elapsed = int((time.time() - start_time) * 1000)
         diffs.append(elapsed)
     total_s = int(time.time() - begin)
-    print(f"{table.name}: query average: {num_queries / total_s:.1f}QPS")
+    print(f"{table.name}: query count: {num_queries} average: {num_queries / total_s:.1f}QPS")
     print_percentiles(diffs)
 
 
@@ -271,7 +271,7 @@ def main():
         "-b",
         "--batch",
         type=int,
-        default=1000,
+        default=20000,
         help="max batch size for ingestion",
     )
     parser.add_argument(
