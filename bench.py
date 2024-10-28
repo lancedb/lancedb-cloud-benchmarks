@@ -13,7 +13,7 @@ import numpy as np
 import pyarrow as pa
 from datasets import load_dataset, DownloadConfig
 
-from cloud.benchmark.util import print_percentiles, await_indices
+from src.cloud.benchmark.util import print_percentiles, await_indices
 
 
 def run_benchmark(
@@ -31,6 +31,7 @@ def run_benchmark(
         host_override=os.getenv("LANCEDB_HOST_OVERRIDE"),
         region=os.getenv("LANCEDB_REGION", "us-east-1"),
     )
+
     if ingest:
         tables = list(_create_tables(db, num_tables, prefix))
         _ingest(tables, dataset, batch_size)
@@ -99,7 +100,7 @@ def _ingest_table(dataset: str, table: RemoteTable, batch_size: int) -> int:
     add_times = []
     begin = time.time()
     total_rows = 0
-    for batch in _convert_dataset(table.schema, dataset):
+    for batch in _convert_dataset(table.schema, dataset, batch_size):
         for slice in _split_record_batch(batch, batch_size):
             start_time = time.time()
             _add_batch(table, batch)
@@ -178,21 +179,26 @@ def _to_fixed_size_array(array, dim):
     return pa.FixedSizeListArray.from_arrays(array.values, dim)
 
 
-def _convert_dataset(schema, dataset: str) -> Iterable[pa.RecordBatch]:
-    for batch in load_dataset(
-        dataset,
-        download_config=DownloadConfig(num_proc=8, resume_download=True),
-        split="train",
-    ).data.to_batches():
-        yield pa.RecordBatch.from_arrays(
-            [
-                batch["_id"],
-                batch["title"],
-                batch["text"],
-                _to_fixed_size_array(batch["openai"], 1536),
-            ],
-            schema=schema,
-        )
+def _convert_dataset(schema, dataset: str, batch_size: int) -> Iterable[pa.RecordBatch]:
+    batch_iterator = load_dataset(dataset, download_config=DownloadConfig(num_proc=8, resume_download=True),
+                           split="train", ).data.to_batches()
+
+    buffer = []
+    buffer_rows = 0
+    for batch in batch_iterator:
+        rb = pa.RecordBatch.from_arrays(
+            [batch["_id"], batch["title"], batch["text"], _to_fixed_size_array(batch["openai"], 1536), ],
+            schema=schema)
+
+        if buffer_rows >= batch_size:
+            table = pa.Table.from_batches(buffer)
+            combined = table.combine_chunks().to_batches(max_chunksize=batch_size)[0]
+            buffer.clear()
+            buffer_rows = 0
+            yield combined
+        else:
+            buffer.append(rb)
+            buffer_rows += len(rb)
 
 
 def _query_table(table: RemoteTable, num_queries: int, warmup_queries=100):
@@ -242,13 +248,13 @@ def main():
         "--dataset",
         type=str,
         default="KShivendu/dbpedia-entities-openai-1M",
-        help="huggingface dataset name",
+        help="huggingface dataset name. Only KShivendu/dbpedia-entities-openai-1M is supported currently",
     )
     parser.add_argument(
         "-t",
         "--tables",
         type=int,
-        default=10,
+        default=4,
         help="number of concurrent tables",
     )
     parser.add_argument(

@@ -43,6 +43,12 @@ Run query benchmark only against existing tables:
 ### Help
 Run `uv run bench.py --help`
 
+### Deployment recommendations
+
+To get representative results, it is recommended to run the benchmarking script in a production-like environment with adequate network bandwidth and deployed in a region/datacenter close to the LanceDB endpoint.
+
+For LanceDB Cloud, it is recommended to deploy the benchmarking script in **AWS us-east-1** region.
+
 ### Scaling out
 
 At high traffic levels, ingestion and query performance may be limited in a single Python client process. It is possible to scale out
