@@ -7,13 +7,15 @@ import numpy as np
 from lancedb.remote.table import RemoteTable
 
 
-@backoff.on_exception(backoff.constant, ValueError, max_time=600, interval=10)
+@backoff.on_exception(
+    backoff.constant, ValueError, max_time=600, interval=10, logger=None
+)
 def await_indices(
     table: RemoteTable, count: int = 1, index_types: Optional[list[str]] = []
 ) -> list[dict]:
     """poll for all indices to be created on the table"""
     indices = table.list_indices()
-    print(f"current indices for table {table}: {indices}")
+    # print(f"current indices for table {table}: {indices}")
     result_indices = []
     for index in indices["indexes"]:
         if not index["index_name"]:
@@ -43,9 +45,7 @@ def await_indices(
     unindexed_rows = [s["num_unindexed_rows"] for s in stats]
     for u in unindexed_rows:
         if u != 0:
-            raise ValueError(
-                f"still waiting for unindexed rows to be 0 (current: {u})"
-            )
+            raise ValueError(f"still waiting for unindexed rows to be 0 (current: {u})")
 
     return result_indices
 

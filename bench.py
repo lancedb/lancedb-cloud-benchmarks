@@ -2,6 +2,7 @@ import argparse
 import concurrent
 import os
 import time
+from concurrent.futures import wait
 from typing import Iterable
 
 from lancedb.remote.errors import LanceDBClientError
@@ -37,7 +38,7 @@ def run_benchmark(
         tables = list(_open_tables(db, num_tables, prefix))
 
     if index:
-        _create_vector_index(tables, "openai")
+        _create_indices(tables)
 
     _query_tables(tables, num_queries)
 
@@ -78,7 +79,6 @@ def _open_tables(
 
 
 def _ingest(tables: list[RemoteTable], dataset: str, batch_size: int):
-    # TODO: ingest the datasets in parallel in separate processes?
     start = time.time()
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(tables)) as executor:
         futures = []
@@ -90,7 +90,7 @@ def _ingest(tables: list[RemoteTable], dataset: str, batch_size: int):
         total_s = time.time() - start
         total_rows = sum(results)
         print(
-            f"ingested {total_rows} rows in all tables in {total_s:.1f}s. average: {total_rows / total_s:.1f}rows/s"
+            f"ingested {total_rows} rows in {len(tables)} tables in {total_s:.1f}s. average: {total_rows / total_s:.1f}rows/s"
         )
 
 
@@ -136,24 +136,42 @@ def _query_tables(tables: list[RemoteTable], num_queries: int):
             futures.append(executor.submit(_query_table, table, num_queries))
         [future.result() for future in futures]
 
-    # for table in tables:
-    #     _query_table(table, num_queries)
 
-
-def _create_vector_index(tables: list[RemoteTable], column_name: str):
-    for t in tables:
-        _create_vector_index_for_table(t, column_name)
-
-    for t in tables:
-        start = time.time()
-        await_indices(t, 1, ["IVF_PQ"])
-        print(f"{t.name}: indexing completed in {int(time.time() - start)}s.")
-
-
-def _create_vector_index_for_table(table: RemoteTable, column_name: str):
-    table.create_index(
-        metric="cosine", vector_column_name=column_name, index_type="IVF_PQ"
+def _await_index(table: RemoteTable, index_type: str, start_time):
+    await_indices(table, 1, [index_type])
+    print(
+        f"{table.name}: {index_type} indexing completed in {int(time.time() - start_time)}s."
     )
+
+
+def _create_indices(tables: list[RemoteTable]):
+    # create the indices - these will be created async
+    table_indices = {}
+    for t in tables:
+        try:
+            t.create_index(
+                metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
+            )
+            # todo: increase saas index limit
+            # t.create_scalar_index("_id", index_type="BTREE")
+            t.create_fts_index("title")
+        except LanceDBClientError:
+            pass
+        table_indices[t] = ["IVF_PQ", "FTS"]
+        # "BTREE"]
+
+    print("waiting for index completion...")
+    start = time.time()
+
+    # poll for index completion in parallel to gather accurate indexing time
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(tables) * 3) as executor:
+        futures = []
+        for table, indices in table_indices.items():
+            for index in indices:
+                futures.append(executor.submit(_await_index(table, index, start)))
+        wait(futures)
+        total_s = time.time() - start
+        print(f"found all indices for {len(tables)} tables in {total_s:.1f}s.")
 
 
 def _to_fixed_size_array(array, dim):
@@ -177,7 +195,7 @@ def _convert_dataset(schema, dataset: str) -> Iterable[pa.RecordBatch]:
         )
 
 
-def _query_table(table, num_queries: int, warmup_queries=100):
+def _query_table(table: RemoteTable, num_queries: int, warmup_queries=100):
     # log a warning if data is not fully indexed
     total_rows = table.count_rows()
     for idx in table.list_indices()["indexes"]:
@@ -188,7 +206,9 @@ def _query_table(table, num_queries: int, warmup_queries=100):
                 f"total rows: {total_rows} index: {stats}"
             )
 
-    print(f"{table.name}: starting query test. {num_queries=} {warmup_queries=} {total_rows=}")
+    print(
+        f"{table.name}: starting query test. {num_queries=} {warmup_queries=} {total_rows=}"
+    )
     for _ in range(warmup_queries):
         _query(table)
 
