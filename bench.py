@@ -180,8 +180,10 @@ def _to_fixed_size_array(array, dim):
 
 
 def _convert_dataset(schema, dataset: str, batch_size: int) -> Iterable[pa.RecordBatch]:
-    batch_iterator = load_dataset(dataset, download_config=DownloadConfig(num_proc=8, resume_download=True),
-                           split="train", ).data.to_batches()
+    batch_iterator = load_dataset(dataset,
+                                  download_config=DownloadConfig(resume_download=True),
+                                  cache_dir="/tmp/datasets",
+                                  split="train",).data.to_batches()
 
     buffer = []
     buffer_rows = 0
