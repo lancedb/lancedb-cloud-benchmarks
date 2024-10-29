@@ -131,12 +131,20 @@ def _split_record_batch(record_batch, batch_size):
 
 
 def _query_tables(tables: list[RemoteTable], num_queries: int):
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(tables)) as executor:
+    num_tables = len(tables)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_tables) as executor:
         futures = []
 
+        start = time.time()
         for table in tables:
             futures.append(executor.submit(_query_table, table, num_queries))
         [future.result() for future in futures]
+
+        total_s = time.time() - start
+        total_queries = num_queries * num_tables
+        print(
+            f"completed {total_queries} queries on {num_tables} tables in {total_s:.1f}s. average: {total_queries / total_s:.1f}QPS"
+        )
 
 
 def _await_index(table: RemoteTable, index_type: str, start_time):
@@ -235,8 +243,10 @@ def _query_table(table: RemoteTable, num_queries: int, warmup_queries=100):
         elapsed = int((time.time() - start_time) * 1000)
         diffs.append(elapsed)
     total_s = int(time.time() - begin)
-    print(f"{table.name}: query count: {num_queries} average: {num_queries / total_s:.1f}QPS")
+    qps = num_queries / total_s
+    print(f"{table.name}: query count: {num_queries} average: {qps :.1f}QPS")
     print_percentiles(diffs)
+    return qps
 
 
 def _query(table: RemoteTable, nprobes=1):
