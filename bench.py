@@ -135,15 +135,14 @@ def _query_tables(tables: list[RemoteTable], num_queries: int):
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_tables) as executor:
         futures = []
 
-        start = time.time()
         for table in tables:
             futures.append(executor.submit(_query_table, table, num_queries))
-        [future.result() for future in futures]
+        results = [future.result() for future in futures]
 
-        total_s = time.time() - start
         total_queries = num_queries * num_tables
+        total_qps = sum(results)
         print(
-            f"completed {total_queries} queries on {num_tables} tables in {total_s:.1f}s. average: {total_queries / total_s:.1f}QPS"
+            f"completed {total_queries} queries on {num_tables} tables. average: {total_qps:.1f}QPS"
         )
 
 
