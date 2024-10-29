@@ -42,6 +42,7 @@ def run_benchmark(
         _create_indices(tables)
 
     _query_tables(tables, num_queries)
+    print("benchmark complete")
 
 
 def _create_tables(
@@ -130,12 +131,19 @@ def _split_record_batch(record_batch, batch_size):
 
 
 def _query_tables(tables: list[RemoteTable], num_queries: int):
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(tables)) as executor:
+    num_tables = len(tables)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_tables) as executor:
         futures = []
 
         for table in tables:
             futures.append(executor.submit(_query_table, table, num_queries))
-        [future.result() for future in futures]
+        results = [future.result() for future in futures]
+
+        total_queries = num_queries * num_tables
+        total_qps = sum(results)
+        print(
+            f"completed {total_queries} queries on {num_tables} tables. average: {total_qps:.1f}QPS"
+        )
 
 
 def _await_index(table: RemoteTable, index_type: str, start_time):
@@ -149,17 +157,12 @@ def _create_indices(tables: list[RemoteTable]):
     # create the indices - these will be created async
     table_indices = {}
     for t in tables:
-        try:
-            t.create_index(
-                metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
-            )
-            # todo: increase saas index limit
-            # t.create_scalar_index("_id", index_type="BTREE")
-            t.create_fts_index("title")
-        except LanceDBClientError:
-            pass
-        table_indices[t] = ["IVF_PQ", "FTS"]
-        # "BTREE"]
+        t.create_index(
+            metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
+        )
+        t.create_scalar_index("_id", index_type="BTREE")
+        t.create_fts_index("title")
+        table_indices[t] = ["IVF_PQ", "FTS", "BTREE"]
 
     print("waiting for index completion...")
     start = time.time()
@@ -183,7 +186,7 @@ def _convert_dataset(schema, dataset: str, batch_size: int) -> Iterable[pa.Recor
     batch_iterator = load_dataset(
         dataset,
         cache_dir="/tmp/datasets/cache",
-        download_config=DownloadConfig(resume_download=True),
+        download_config=DownloadConfig(resume_download=True, disable_tqdm=True),
         split="train",
     ).data.to_batches()
 
@@ -209,6 +212,9 @@ def _convert_dataset(schema, dataset: str, batch_size: int) -> Iterable[pa.Recor
         else:
             buffer.append(rb)
             buffer_rows += len(rb)
+
+    for b in buffer:
+        yield b
 
 
 def _query_table(table: RemoteTable, num_queries: int, warmup_queries=100):
@@ -236,8 +242,10 @@ def _query_table(table: RemoteTable, num_queries: int, warmup_queries=100):
         elapsed = int((time.time() - start_time) * 1000)
         diffs.append(elapsed)
     total_s = int(time.time() - begin)
-    print(f"{table.name}: query count: {num_queries} average: {num_queries / total_s:.1f}QPS")
+    qps = num_queries / total_s
+    print(f"{table.name}: query count: {num_queries} average: {qps :.1f}QPS")
     print_percentiles(diffs)
+    return qps
 
 
 def _query(table: RemoteTable, nprobes=1):
