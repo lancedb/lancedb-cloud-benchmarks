@@ -24,6 +24,7 @@ def run_benchmark(
     ingest: bool,
     index: bool,
     prefix: str,
+    reset: bool
 ):
     db = lancedb.connect(
         uri=os.environ["LANCEDB_DB_URI"],
@@ -31,6 +32,12 @@ def run_benchmark(
         host_override=os.getenv("LANCEDB_HOST_OVERRIDE"),
         region=os.getenv("LANCEDB_REGION", "us-east-1"),
     )
+
+    if reset:
+        tables = list(_open_tables(db, num_tables, prefix))
+        for t in tables:
+            print(f"dropping table {t.name}")
+            db.drop_table(t.name)
 
     if ingest:
         tables = list(_create_tables(db, num_tables, prefix))
@@ -310,6 +317,14 @@ def main():
         default="ldb-cloud-benchmarks",
         help="table name prefix",
     )
+    parser.add_argument(
+        "-r",
+        "--reset",
+        type=bool,
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="drop tables before ingesting",
+    )
     args = parser.parse_args()
     print(args)
     run_benchmark(
@@ -320,6 +335,7 @@ def main():
         args.ingest,
         args.index,
         args.prefix,
+        args.reset
     )
 
 
