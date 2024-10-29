@@ -1,4 +1,3 @@
-set -x
 n=$1
 prefix=$2
 cmd=$3
