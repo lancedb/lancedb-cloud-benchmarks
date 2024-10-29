@@ -50,7 +50,7 @@ def _create_tables(
 ) -> Iterable[RemoteTable]:
     schema = pa.schema(
         [
-            pa.field("_id", pa.string()),
+            pa.field("id", pa.string()),
             pa.field("title", pa.string()),
             pa.field("text", pa.string()),
             pa.field("openai", pa.list_(pa.float32(), 1536)),
@@ -160,7 +160,7 @@ def _create_indices(tables: list[RemoteTable]):
         t.create_index(
             metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
         )
-        t.create_scalar_index("_id", index_type="BTREE")
+        t.create_scalar_index("id", index_type="BTREE")
         t.create_fts_index("title")
         table_indices[t] = ["IVF_PQ", "FTS", "BTREE"]
 
