@@ -150,17 +150,12 @@ def _create_indices(tables: list[RemoteTable]):
     # create the indices - these will be created async
     table_indices = {}
     for t in tables:
-        try:
-            t.create_index(
-                metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
-            )
-            # todo: increase saas index limit
-            # t.create_scalar_index("_id", index_type="BTREE")
-            t.create_fts_index("title")
-        except LanceDBClientError:
-            pass
-        table_indices[t] = ["IVF_PQ", "FTS"]
-        # "BTREE"]
+        t.create_index(
+            metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
+        )
+        t.create_scalar_index("_id", index_type="BTREE")
+        t.create_fts_index("title")
+        table_indices[t] = ["IVF_PQ", "FTS", "BTREE"]
 
     print("waiting for index completion...")
     start = time.time()
