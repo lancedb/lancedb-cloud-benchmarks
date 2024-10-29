@@ -184,7 +184,7 @@ def _convert_dataset(schema, dataset: str, batch_size: int) -> Iterable[pa.Recor
     batch_iterator = load_dataset(
         dataset,
         cache_dir="/tmp/datasets/cache",
-        download_config=DownloadConfig(resume_download=True),
+        download_config=DownloadConfig(resume_download=True, disable_tqdm=True),
         split="train",
     ).data.to_batches()
 
@@ -210,6 +210,9 @@ def _convert_dataset(schema, dataset: str, batch_size: int) -> Iterable[pa.Recor
         else:
             buffer.append(rb)
             buffer_rows += len(rb)
+
+    for b in buffer:
+        yield b
 
 
 def _query_table(table: RemoteTable, num_queries: int, warmup_queries=100):
