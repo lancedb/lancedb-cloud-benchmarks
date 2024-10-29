@@ -42,6 +42,7 @@ def run_benchmark(
         _create_indices(tables)
 
     _query_tables(tables, num_queries)
+    print("benchmark complete")
 
 
 def _create_tables(
