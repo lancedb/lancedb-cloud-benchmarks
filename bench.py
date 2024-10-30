@@ -17,14 +17,14 @@ from src.cloud.benchmark.util import print_percentiles, await_indices
 
 
 def run_benchmark(
-    dataset: str,
-    num_tables: int,
-    batch_size: int,
-    num_queries: int,
-    ingest: bool,
-    index: bool,
-    prefix: str,
-    reset: bool
+        dataset: str,
+        num_tables: int,
+        batch_size: int,
+        num_queries: int,
+        ingest: bool,
+        index: bool,
+        prefix: str,
+        reset: bool
 ):
     db = lancedb.connect(
         uri=os.environ["LANCEDB_DB_URI"],
@@ -34,10 +34,7 @@ def run_benchmark(
     )
 
     if reset:
-        tables = list(_open_tables(db, num_tables, prefix))
-        for t in tables:
-            print(f"dropping table {t.name}")
-            db.drop_table(t.name)
+        _drop_tables(db, num_tables, prefix)
 
     if ingest:
         tables = list(_create_tables(db, num_tables, prefix))
@@ -53,7 +50,7 @@ def run_benchmark(
 
 
 def _create_tables(
-    db: lancedb.LanceDBConnection, num_tables: int, prefix: str
+        db: lancedb.LanceDBConnection, num_tables: int, prefix: str
 ) -> Iterable[RemoteTable]:
     schema = pa.schema(
         [
@@ -80,11 +77,18 @@ def _create_tables(
 
 
 def _open_tables(
-    db: lancedb.LanceDBConnection, num_tables: int, prefix: str
+        db: lancedb.LanceDBConnection, num_tables: int, prefix: str
 ) -> Iterable[RemoteTable]:
     for i in range(num_tables):
         table_name = f"{prefix}-{i}"
         yield db.open_table(table_name)
+
+
+def _drop_tables(db, num_tables, prefix):
+    tables = list(_open_tables(db, num_tables, prefix))
+    for t in tables:
+        print(f"dropping table {t.name}")
+        db.drop_table(t.name)
 
 
 def _ingest(tables: list[RemoteTable], dataset: str, batch_size: int):
@@ -128,7 +132,10 @@ def _ingest_table(dataset: str, table: RemoteTable, batch_size: int) -> int:
 
 
 def _add_batch(table, batch):
-    table.add(batch)
+    try:
+        table.add(batch)
+    except Exception as e:
+        print(f"{table.name}: error during add: {e}")
 
 
 def _split_record_batch(record_batch, batch_size):
@@ -256,14 +263,10 @@ def _query_table(table: RemoteTable, num_queries: int, warmup_queries=100):
 
 
 def _query(table: RemoteTable, nprobes=1):
-    result = (
-        table.search(np.random.standard_normal(1536))
-        .metric("cosine")
-        .nprobes(nprobes)
-        .select(["openai", "title"])
-        .to_list()
-    )
-    return result
+    try:
+        table.search(np.random.standard_normal(1536)).metric("cosine").nprobes(nprobes).select(["openai", "title"]).to_list()
+    except Exception as e:
+        print(f"{table.name}: error during query: {e}")
 
 
 def main():
