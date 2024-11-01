@@ -3,7 +3,6 @@ import time
 from typing import List, Optional
 
 import backoff
-import numpy as np
 from lancedb.remote.table import RemoteTable
 import json
 
@@ -88,13 +87,6 @@ def log_timer(func, log_func=print):
     return wrapper
 
 
-def print_percentiles(diffs, percentiles=[50, 90, 99, 100]):
-    # TODO(future) average the percentiles to be the result
-    for p in percentiles:
-        percentile_value = np.percentile(diffs, p)
-        print(f"p{p}: {percentile_value:.2f}ms")
-
-
 class BenchmarkResults:
     def __init__(self):
         self.tables = 0
@@ -103,9 +95,16 @@ class BenchmarkResults:
         self.ingest_rows_per_second = 0
         self.index_duration_second = 0
         self.total_queries = 0
+        # Add to the other methods
         self.queries_per_second = 0
-        # P50, P90, P95, P99
-        # TODO(future) self.query_lantency_percentile = {}
+        self.ingest_latency_p50 = 0
+        self.ingest_latency_p90 = 0
+        self.ingest_latency_p95 = 0
+        self.ingest_latency_p99 = 0
+        self.query_latency_p50 = 0
+        self.query_latency_p90 = 0
+        self.query_latency_p95 = 0
+        self.query_latency_p99 = 0
 
     @staticmethod
     def combine(results: List["BenchmarkResults"]) -> Optional["BenchmarkResults"]:
@@ -137,6 +136,31 @@ class BenchmarkResults:
         combined.total_queries = sum(r.total_queries for r in results)
         combined.queries_per_second = sum(r.queries_per_second for r in results)
 
+        combined.ingest_latency_p50 = sum(r.ingest_latency_p50 for r in results) / len(
+            results
+        )
+        combined.ingest_latency_p90 = sum(r.ingest_latency_p90 for r in results) / len(
+            results
+        )
+        combined.ingest_latency_p95 = sum(r.ingest_latency_p95 for r in results) / len(
+            results
+        )
+        combined.ingest_latency_p99 = sum(r.ingest_latency_p99 for r in results) / len(
+            results
+        )
+
+        combined.query_latency_p50 = sum(r.query_latency_p50 for r in results) / len(
+            results
+        )
+        combined.query_latency_p90 = sum(r.query_latency_p90 for r in results) / len(
+            results
+        )
+        combined.query_latency_p95 = sum(r.query_latency_p95 for r in results) / len(
+            results
+        )
+        combined.query_latency_p99 = sum(r.query_latency_p99 for r in results) / len(
+            results
+        )
         return combined
 
     def to_json(self) -> str:
@@ -150,6 +174,14 @@ class BenchmarkResults:
                 "index_duration_second": self.index_duration_second,
                 "total_queries": self.total_queries,
                 "queries_per_second": self.queries_per_second,
+                "ingest_latency_p50": self.ingest_latency_p50,
+                "ingest_latency_p90": self.ingest_latency_p90,
+                "ingest_latency_p95": self.ingest_latency_p95,
+                "ingest_latency_p99": self.ingest_latency_p99,
+                "query_latency_p50": self.query_latency_p50,
+                "query_latency_p90": self.query_latency_p90,
+                "query_latency_p95": self.query_latency_p95,
+                "query_latency_p99": self.query_latency_p99,
             }
         )
 
@@ -168,6 +200,14 @@ class BenchmarkResults:
             result.index_duration_second = data["index_duration_second"]
             result.total_queries = data["total_queries"]
             result.queries_per_second = data["queries_per_second"]
+            result.ingest_latency_p50 = data["ingest_latency_p50"]
+            result.ingest_latency_p90 = data["ingest_latency_p90"]
+            result.ingest_latency_p95 = data["ingest_latency_p95"]
+            result.ingest_latency_p99 = data["ingest_latency_p99"]
+            result.query_latency_p50 = data["query_latency_p50"]
+            result.query_latency_p90 = data["query_latency_p90"]
+            result.query_latency_p95 = data["query_latency_p95"]
+            result.query_latency_p99 = data["query_latency_p99"]
             return result
         except json.JSONDecodeError as e:
             print(f"Error decoding JSON results: {e}")
@@ -183,8 +223,19 @@ class BenchmarkResults:
         print(f"  Total rows: {self.ingest_rows:,}")
         print(f"  Duration: {self.ingest_duration_second:.1f}s")
         print(f"  Rows/second: {self.ingest_rows_per_second:.1f}")
+        print("  Latencies:")
+        print(f"    p50: {self.ingest_latency_p50:.2f}ms")
+        print(f"    p90: {self.ingest_latency_p90:.2f}ms")
+        print(f"    p95: {self.ingest_latency_p95:.2f}ms")
+        print(f"    p99: {self.ingest_latency_p99:.2f}ms")
         print("\nIndexing:")
         print(f"  Duration: {self.index_duration_second:.1f}s")
         print("\nQueries:")
         print(f"  Total queries: {self.total_queries}")
         print(f"  Queries/second: {self.queries_per_second:.1f}")
+        print("  Latencies:")
+        print(f"    p50: {self.query_latency_p50:.2f}ms")
+        print(f"    p90: {self.query_latency_p90:.2f}ms")
+        print(f"    p95: {self.query_latency_p95:.2f}ms")
+        print(f"    p99: {self.query_latency_p99:.2f}ms")
+        print("\n=== Benchmark Results End ===")

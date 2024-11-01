@@ -13,7 +13,7 @@ import numpy as np
 import pyarrow as pa
 from datasets import load_dataset, DownloadConfig
 
-from cloud.benchmark.util import print_percentiles, await_indices, BenchmarkResults
+from cloud.benchmark.util import await_indices, BenchmarkResults
 
 
 def add_benchmark_args(parser: argparse.ArgumentParser):
@@ -163,7 +163,7 @@ class Benchmark:
             print(f"dropping table {t.name}")
             try:
                 self.db.drop_table(t.name)
-            except LanceDBClientError as e:
+            except Exception as e:
                 print(f"error dropping table {t.name}: {e}")
 
     def _ingest(self):
@@ -210,7 +210,7 @@ class Benchmark:
         print(
             f"{table.name}: ingested {total_rows} rows in {total_s}s. average: {total_rows / total_s:.1f}rows/s"
         )
-        print_percentiles(add_times)
+        self._add_percentiles("ingest", add_times)
         return total_rows
 
     def _add_batch(self, table, batch):
@@ -349,7 +349,7 @@ class Benchmark:
         total_s = max(int(time.time() - begin), 1)
         qps = self.num_queries / total_s
         print(f"{table.name}: query count: {self.num_queries} average: {qps :.1f}QPS")
-        print_percentiles(diffs)
+        self._add_percentiles("query", diffs)
         return qps
 
     def _query(self, table: RemoteTable, nprobes=1):
@@ -359,6 +359,30 @@ class Benchmark:
             ).select(["openai", "title"]).to_list()
         except Exception as e:
             print(f"{table.name}: error during query: {e}")
+
+    def _add_percentiles(self, type, diffs, percentiles=[50, 90, 95, 99, 100]):
+        for p in percentiles:
+            percentile_value = np.percentile(diffs, p)
+            print(f"p{p}: {percentile_value:.2f}ms")
+
+            if type == "query":
+                if p == 50:
+                    self.results.query_latency_p50 = percentile_value
+                elif p == 90:
+                    self.results.query_latency_p90 = percentile_value
+                elif p == 95:
+                    self.results.query_latency_p95 = percentile_value
+                elif p == 99:
+                    self.results.query_latency_p99 = percentile_value
+            elif type == "ingest":
+                if p == 50:
+                    self.results.ingest_latency_p50 = percentile_value
+                elif p == 90:
+                    self.results.ingest_latency_p90 = percentile_value
+                elif p == 95:
+                    self.results.ingest_latency_p95 = percentile_value
+                elif p == 99:
+                    self.results.ingest_latency_p99 = percentile_value
 
 
 def run_benchmark(
