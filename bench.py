@@ -158,14 +158,14 @@ class Benchmark:
     def _drop_tables(self):
         try:
             tables = list(self._open_tables())
-        except Exception as e:
+        except Exception:
             return
 
         for t in tables:
             print(f"dropping table {t.name}")
             try:
                 self.db.drop_table(t.name)
-            except Exception as e:
+            except Exception:
                 return
 
     def _ingest(self):
