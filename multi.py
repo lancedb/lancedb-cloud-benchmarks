@@ -59,12 +59,12 @@ def run_multi_benchmark(
     if ingest or index:
         for i in range(0, num_processes):
             process_kwargs = bench_kwargs.copy()
-            process_args.append((i, 0, process_kwargs))
+            process_args.append((i + 1, 0, process_kwargs))
     else:
         for i in range(0, num_processes):
             for j in range(0, query_process):
                 process_kwargs = bench_kwargs.copy()
-                process_args.append((i, j, process_kwargs))
+                process_args.append((i + 1, j, process_kwargs))
 
     with mp.Pool(processes=total_processes) as pool:
         process_results = pool.map(run_benchmark_process, process_args)
