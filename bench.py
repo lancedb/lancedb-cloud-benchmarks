@@ -124,8 +124,6 @@ class Benchmark:
 
         # TODO(lu) add self.query
         self._query_tables()
-        print("benchmark complete")
-        self.results.print()
         return self.results
 
     def _create_tables(self) -> Iterable[RemoteTable]:
@@ -361,29 +359,16 @@ class Benchmark:
             print(f"{table.name}: error during query: {e}")
 
     def _add_percentiles(self, type, diffs, percentiles=[50, 90, 95, 99, 100]):
-        for p in percentiles:
-            percentile_value = np.percentile(diffs, p)
+        percentile_values = {p: np.percentile(diffs, p) for p in percentiles}
+
+        for p, percentile_value in percentile_values.items():
             print(f"p{p}: {percentile_value:.2f}ms")
 
-            if type == "query":
-                if p == 50:
-                    self.results.query_latency_p50 = percentile_value
-                elif p == 90:
-                    self.results.query_latency_p90 = percentile_value
-                elif p == 95:
-                    self.results.query_latency_p95 = percentile_value
-                elif p == 99:
-                    self.results.query_latency_p99 = percentile_value
-            elif type == "ingest":
-                if p == 50:
-                    self.results.ingest_latency_p50 = percentile_value
-                elif p == 90:
-                    self.results.ingest_latency_p90 = percentile_value
-                elif p == 95:
-                    self.results.ingest_latency_p95 = percentile_value
-                elif p == 99:
-                    self.results.ingest_latency_p99 = percentile_value
-
+        # Extend the latency lists instead of overwriting
+        if type == "query":
+            self.results.query_latencies.extend(diffs)
+        elif type == "ingest":
+            self.results.ingest_latencies.extend(diffs)
 
 def run_benchmark(
     dataset: str,
@@ -407,7 +392,7 @@ def main():
     args = parser.parse_args()
     print(args)
 
-    run_benchmark(
+    result: BenchmarkResults = run_benchmark(
         args.dataset,
         args.tables,
         args.batch,
@@ -417,6 +402,7 @@ def main():
         args.prefix,
         args.reset,
     )
+    result.print(True)
 
 
 if __name__ == "__main__":

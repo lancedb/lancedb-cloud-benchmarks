@@ -2,6 +2,8 @@ import functools
 import time
 from typing import List, Optional
 
+import numpy as np
+
 import backoff
 from lancedb.remote.table import RemoteTable
 import json
@@ -95,8 +97,11 @@ class BenchmarkResults:
         self.ingest_rows_per_second = 0
         self.index_duration_second = 0
         self.total_queries = 0
-        # Add to the other methods
         self.queries_per_second = 0
+        # Add latency lists to store all measurements
+        self.query_latencies = []
+        self.ingest_latencies = []
+        # Keep these for final results
         self.ingest_latency_p50 = 0
         self.ingest_latency_p90 = 0
         self.ingest_latency_p95 = 0
@@ -108,63 +113,58 @@ class BenchmarkResults:
 
     @staticmethod
     def combine(results: List["BenchmarkResults"]) -> Optional["BenchmarkResults"]:
-        """
-        Combine multiple benchmark results into a single result.
-        Handles parallel execution by taking max durations and summing counts.
-        """
         if not results:
             return None
 
         combined = BenchmarkResults()
-
         combined.tables = sum(r.tables for r in results)
-
         combined.ingest_rows = sum(r.ingest_rows for r in results)
         combined.ingest_duration_second = max(
             (r.ingest_duration_second for r in results), default=0
         )
-
         if combined.ingest_duration_second > 0:
             combined.ingest_rows_per_second = (
                 combined.ingest_rows / combined.ingest_duration_second
             )
-
         combined.index_duration_second = max(
             (r.index_duration_second for r in results), default=0
         )
-
         combined.total_queries = sum(r.total_queries for r in results)
         combined.queries_per_second = sum(r.queries_per_second for r in results)
 
-        combined.ingest_latency_p50 = sum(r.ingest_latency_p50 for r in results) / len(
-            results
-        )
-        combined.ingest_latency_p90 = sum(r.ingest_latency_p90 for r in results) / len(
-            results
-        )
-        combined.ingest_latency_p95 = sum(r.ingest_latency_p95 for r in results) / len(
-            results
-        )
-        combined.ingest_latency_p99 = sum(r.ingest_latency_p99 for r in results) / len(
-            results
-        )
+        # Combine all latency measurements
+        for r in results:
+            combined.query_latencies.extend(r.query_latencies)
+            combined.ingest_latencies.extend(r.ingest_latencies)
 
-        combined.query_latency_p50 = sum(r.query_latency_p50 for r in results) / len(
-            results
-        )
-        combined.query_latency_p90 = sum(r.query_latency_p90 for r in results) / len(
-            results
-        )
-        combined.query_latency_p95 = sum(r.query_latency_p95 for r in results) / len(
-            results
-        )
-        combined.query_latency_p99 = sum(r.query_latency_p99 for r in results) / len(
-            results
-        )
+        # Calculate percentiles from combined measurements
+        combined._update_latencies(combined.query_latencies, "query")
+        combined._update_latencies(combined.ingest_latencies, "ingest")
+
         return combined
 
+    def _update_latencies(self, latencies: list, type: str):
+        """
+        Update percentile values based on latency measurements.
+        Args:
+            latencies: List of latency measurements
+            type: Either "query" or "ingest"
+        """
+        if not latencies:
+            return
+
+        if type == "query":
+            self.query_latency_p50 = np.percentile(latencies, 50)
+            self.query_latency_p90 = np.percentile(latencies, 90)
+            self.query_latency_p95 = np.percentile(latencies, 95)
+            self.query_latency_p99 = np.percentile(latencies, 99)
+        elif type == "ingest":
+            self.ingest_latency_p50 = np.percentile(latencies, 50)
+            self.ingest_latency_p90 = np.percentile(latencies, 90)
+            self.ingest_latency_p95 = np.percentile(latencies, 95)
+            self.ingest_latency_p99 = np.percentile(latencies, 99)
+
     def to_json(self) -> str:
-        """Convert to JSON string for safe multiprocessing transfer"""
         return json.dumps(
             {
                 "tables": self.tables,
@@ -174,6 +174,8 @@ class BenchmarkResults:
                 "index_duration_second": self.index_duration_second,
                 "total_queries": self.total_queries,
                 "queries_per_second": self.queries_per_second,
+                "query_latencies": self.query_latencies,
+                "ingest_latencies": self.ingest_latencies,
                 "ingest_latency_p50": self.ingest_latency_p50,
                 "ingest_latency_p90": self.ingest_latency_p90,
                 "ingest_latency_p95": self.ingest_latency_p95,
@@ -187,7 +189,6 @@ class BenchmarkResults:
 
     @classmethod
     def from_json(cls, json_str: Optional[str]) -> Optional["BenchmarkResults"]:
-        """Create from JSON string after multiprocessing transfer"""
         if json_str is None:
             return None
         try:
@@ -200,6 +201,8 @@ class BenchmarkResults:
             result.index_duration_second = data["index_duration_second"]
             result.total_queries = data["total_queries"]
             result.queries_per_second = data["queries_per_second"]
+            result.query_latencies = data["query_latencies"]
+            result.ingest_latencies = data["ingest_latencies"]
             result.ingest_latency_p50 = data["ingest_latency_p50"]
             result.ingest_latency_p90 = data["ingest_latency_p90"]
             result.ingest_latency_p95 = data["ingest_latency_p95"]
@@ -216,7 +219,7 @@ class BenchmarkResults:
             print(f"Missing key in results data: {e}")
             return None
 
-    def print(self):
+    def print(self, update_latencies: bool = False):
         print("\n=== Benchmark Results ===")
         print(f"Number of tables: {self.tables}")
         print("\nIngestion:")
