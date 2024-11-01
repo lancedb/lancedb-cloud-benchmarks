@@ -1,11 +1,12 @@
 import functools
 import time
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 import backoff
 import numpy as np
 from lancedb.remote.table import RemoteTable
 import json
+
 
 @backoff.on_exception(
     backoff.constant, ValueError, max_time=600, interval=10, logger=None
@@ -93,6 +94,7 @@ def print_percentiles(diffs, percentiles=[50, 90, 99, 100]):
         percentile_value = np.percentile(diffs, p)
         print(f"p{p}: {percentile_value:.2f}ms")
 
+
 class BenchmarkResults:
     def __init__(self):
         self.tables = 0
@@ -139,15 +141,17 @@ class BenchmarkResults:
 
     def to_json(self) -> str:
         """Convert to JSON string for safe multiprocessing transfer"""
-        return json.dumps({
-            'tables': self.tables,
-            'ingest_rows': self.ingest_rows,
-            'ingest_duration_second': self.ingest_duration_second,
-            'ingest_rows_per_second': self.ingest_rows_per_second,
-            'index_duration_second': self.index_duration_second,
-            'total_queries': self.total_queries,
-            'queries_per_second': self.queries_per_second
-        })
+        return json.dumps(
+            {
+                "tables": self.tables,
+                "ingest_rows": self.ingest_rows,
+                "ingest_duration_second": self.ingest_duration_second,
+                "ingest_rows_per_second": self.ingest_rows_per_second,
+                "index_duration_second": self.index_duration_second,
+                "total_queries": self.total_queries,
+                "queries_per_second": self.queries_per_second,
+            }
+        )
 
     @classmethod
     def from_json(cls, json_str: Optional[str]) -> Optional["BenchmarkResults"]:
@@ -157,13 +161,13 @@ class BenchmarkResults:
         try:
             data = json.loads(json_str)
             result = cls()
-            result.tables = data['tables']
-            result.ingest_rows = data['ingest_rows']
-            result.ingest_duration_second = data['ingest_duration_second']
-            result.ingest_rows_per_second = data['ingest_rows_per_second']
-            result.index_duration_second = data['index_duration_second']
-            result.total_queries = data['total_queries']
-            result.queries_per_second = data['queries_per_second']
+            result.tables = data["tables"]
+            result.ingest_rows = data["ingest_rows"]
+            result.ingest_duration_second = data["ingest_duration_second"]
+            result.ingest_rows_per_second = data["ingest_rows_per_second"]
+            result.index_duration_second = data["index_duration_second"]
+            result.total_queries = data["total_queries"]
+            result.queries_per_second = data["queries_per_second"]
             return result
         except json.JSONDecodeError as e:
             print(f"Error decoding JSON results: {e}")

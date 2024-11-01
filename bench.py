@@ -13,10 +13,8 @@ import numpy as np
 import pyarrow as pa
 from datasets import load_dataset, DownloadConfig
 
-from src.cloud.benchmark.util import print_percentiles, await_indices, BenchmarkResults
+from cloud.benchmark.util import print_percentiles, await_indices, BenchmarkResults
 
-import argparse
-from dataclasses import dataclass
 
 def add_benchmark_args(parser: argparse.ArgumentParser):
     """Add benchmark arguments to an existing parser"""
@@ -32,7 +30,7 @@ def add_benchmark_args(parser: argparse.ArgumentParser):
         "--tables",
         type=int,
         default=4,
-        help="number of concurrent tables",
+        help="number of concurrent tables per process",
     )
     parser.add_argument(
         "-b",
@@ -163,7 +161,10 @@ class Benchmark:
         tables = list(self._open_tables())
         for t in tables:
             print(f"dropping table {t.name}")
-            self.db.drop_table(t.name)
+            try:
+                self.db.drop_table(t.name)
+            except LanceDBClientError as e:
+                print(f"error dropping table {t.name}: {e}")
 
     def _ingest(self):
         start = time.time()
