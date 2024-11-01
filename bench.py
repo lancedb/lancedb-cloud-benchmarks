@@ -156,13 +156,17 @@ class Benchmark:
             yield self.db.open_table(table_name)
 
     def _drop_tables(self):
-        tables = list(self._open_tables())
+        try:
+            tables = list(self._open_tables())
+        except Exception as e:
+            return
+
         for t in tables:
             print(f"dropping table {t.name}")
             try:
                 self.db.drop_table(t.name)
             except Exception as e:
-                print(f"error dropping table {t.name}: {e}")
+                return
 
     def _ingest(self):
         start = time.time()
