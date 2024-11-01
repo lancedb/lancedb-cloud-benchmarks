@@ -87,7 +87,13 @@ def log_timer(func, log_func=print):
     return wrapper
 
 
-def print_percentiles(diffs, percentiles=[50, 90, 99, 100]):
+def get_percentiles(diffs, percentiles=[50, 90, 95, 99, 100]):
+    res = {}
     for p in percentiles:
-        percentile_value = np.percentile(diffs, p)
-        print(f"p{p}: {percentile_value:.2f}ms")
+        res[f"p{p}"] = np.percentile(diffs, p)
+    return res
+
+
+def print_percentiles(percentiles: dict):
+    for k, v in percentiles.items():
+        print(f"k: {v:.2f}ms")
