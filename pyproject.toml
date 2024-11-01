@@ -10,7 +10,8 @@ dependencies = [
     "lancedb",
     "tqdm",
     "pyarrow",
-    "backoff"
+    "backoff",
+    "jinja2"
 ]
 
 [tool.uv]

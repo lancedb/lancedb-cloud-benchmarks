@@ -1,0 +1,160 @@
+
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+            rel="preload"
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+            as="style"
+            onload="this.onload=null;this.rel='stylesheet'"
+    />
+    <noscript>
+        <link
+                rel="stylesheet"
+                href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+        />
+    </noscript>
+
+
+    <!-- Favicon & Theme -->
+    <link rel="apple-touch-icon" sizes="180x180" href="https://lancedb.com/favicon/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="https://lancedb.com/favicon/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="https://lancedb.com/favicon/favicon-16x16.png" />
+    <link rel="manifest" href="https://lancedb.com/favicon/site.webmanifest" />
+    <meta name="msapplication-config" content="/favicon/browserconfig.xml" />
+    <meta name="msapplication-TileColor" content="#FAF5F0" />
+    <meta name="theme-color" content="#FAF5F0" />
+
+    <!-- Title & Description -->
+    <title>LanceDB Benchmark Results</title>
+    <meta
+            name="description"
+            content="The Database for Multimodal AI"
+    />
+    <link rel="canonical" href="https://lancedb.com" />
+
+    <!-- Open Graph Meta -->
+    <meta property="og:title" content="LanceDB - The Database for Multimodal AI" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://lancedb.com/" />
+    <meta
+            property="og:description"
+            content="The Database for Multimodal AI"
+    />
+    <meta property="og:image" content="https://lancedb.com/images/og-image-new.png" />
+
+    <script type="application/ld+json">
+        {"@context" : "http://schema.org",
+            "@type" : "Organization",
+            "name" : "LanceDB",
+            "url" : "https://lancedb.com/",
+            "logo": "https://lancedb.com/images/lancedb-logo.png" }
+    </script>
+    <link rel="stylesheet" href="https://lancedb.com/assets/index.4295a5a4.css">
+
+    <style>
+        h2 {
+            font-size: 24px;
+            margin-top:15px;
+        }
+
+        h3 {
+            font-size: 20px;
+            margin-top:20px;
+        }
+
+        .label {
+            font-weight: bold;
+            padding-right: 5px
+        }
+
+        .value {
+            text-align: right
+        }
+
+        a {
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="left-4 xl:left-12 xl:pt-3" style="margin:30px"><div class="text-left w-[155px] h-[36px]">
+    <img src="https://lancedb.com/images/lancedb-logo.svg" alt="LanceDB logo" width="155" height="36" class="w-[155px] h-[36px]">
+</div>
+</div>
+
+<div id="report" style="margin: 20px">
+
+    <div id="results">
+
+        <h2>Test Params</h2>
+        <span class="label">Test Run ID</span><span class="value">{{params.test_run_id}}</span><br/>
+        <span class="label">Dataset</span><span class="value"> {{params.dataset}}</span><br/>
+        <span class="label">Batch Size</span><span class="value"> {{params.batch_size}}</span><br/>
+        <span class="label">Queries</span><span class="value"> {{params.num_queries}}</span><br/>
+        <span class="label">Prefix</span><span class="value"> {{params.prefix}}</span><br/>
+        <span class="label">Prefix</span><span class="value"> {{params.prefix}}</span><br/>
+
+        <h2>Aggregated</h2>
+        <h3>
+            Ingestion
+        </h3>
+
+        <p>
+            <span class="label">Rows</span><span class="value">{{aggregated.ingested_rows}}</span><br/>
+            <span class="label">Ingestion rows/s</span><span class="value">{{aggregated.ingestion_rows_s}}</span><br/>
+        </p>
+
+        <h3>
+            Queries
+        </h3>
+
+        <p>
+            <span class="label">Queries</span><span class="value">{{aggregated.queries}}</span><br/>
+            <span class="label">Queries Per Second</span><span class="value">{{aggregated.qps}}</span><br/>
+        </p>
+
+        <h2>All Tables</h2>
+
+        <table>
+            <tr>
+                <th>Table</th>
+                <th>Ingestion Percentiles</th>
+                <th>Query Percentiles</th>
+            </tr>
+
+
+            {% for name, process in processes.items() %}
+                {{name}}
+                p: {{process}} <br/><br/>
+
+                {% for name, table in process.tables.items() %}
+                <tr>
+                    <td>{{table.name}}</td>
+                    <td>{{table.ingest_percentiles_ms}}</td>
+                    <td>{{table.query_percentiles_ms}}</td>
+                </tr>
+                {% endfor %}
+
+            {% endfor %}
+
+        </table>
+
+        <br/>
+        <br/>
+        <a href="./aggregated.json">Source data</a>
+    </div>
+
+</div>
+
+
+</body>
+</html>
