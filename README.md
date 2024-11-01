@@ -57,13 +57,19 @@ At high traffic levels, ingestion and query performance may be limited in a sing
 to larger aggregate numbers by using multiple processes or even distributing across multiple VMs. In this case, the result metrics will need to be aggregated
 to get the total QPS and throughput.
 
-i.e. Run 4 query benchmarks in separate processes with 4 tables each with table name prefix 'my-prefix' (bash):
-```bash
-./multi.sh 4 my-prefix "uv run bench.py -t 4 -q 10000 --no-ingest --no-index"
+Example:
+To run multiple query benchmarks in parallel processes, here’s an example command that initiates 4 benchmarking processes,
+each querying 4 tables, using the table name prefix "my-prefix":
+```
+uv run multi.py -n 4 -t 4 -p my-prefix -q 10000 -r
 ```
 
-This technique can also be used for high-throughput ingestion to multiple tables in parallel using a table prefix per process:
-i.e. Ingest to 50 tables in parallel across 10 processes with prefix 'high-throughput' (bash):
-```bash
-./multi.sh 10 high-throughput "uv run bench.py -t 5"
+After the initial setup, you can rerun the query performance tests without recreating tables or indexes by using:
+```
+uv run multi.py -n 4 -t 4 -p my-prefix -q 10000 --no-ingest --no-index
+```
+
+For additional options and usage details, run:
+```
+uv run multi.py --help
 ```

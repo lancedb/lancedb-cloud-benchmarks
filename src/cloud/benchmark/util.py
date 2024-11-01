@@ -1,10 +1,12 @@
 import functools
 import time
-from typing import Optional
+from typing import List, Optional
+
+import numpy as np
 
 import backoff
-import numpy as np
 from lancedb.remote.table import RemoteTable
+import json
 
 
 @backoff.on_exception(
@@ -87,7 +89,155 @@ def log_timer(func, log_func=print):
     return wrapper
 
 
-def print_percentiles(diffs, percentiles=[50, 90, 99, 100]):
-    for p in percentiles:
-        percentile_value = np.percentile(diffs, p)
-        print(f"p{p}: {percentile_value:.2f}ms")
+class BenchmarkResults:
+    def __init__(self):
+        self.tables = 0
+        self.ingest_rows = 0
+        self.ingest_duration_second = 0
+        self.ingest_rows_per_second = 0
+        self.index_duration_second = 0
+        self.total_queries = 0
+        self.queries_per_second = 0
+        self.query_latencies = []
+        self.ingest_latencies = []
+        # Keep these for final results
+        self.ingest_latency_p50 = 0
+        self.ingest_latency_p90 = 0
+        self.ingest_latency_p95 = 0
+        self.ingest_latency_p99 = 0
+        self.query_latency_p50 = 0
+        self.query_latency_p90 = 0
+        self.query_latency_p95 = 0
+        self.query_latency_p99 = 0
+
+    @staticmethod
+    def combine(results: List["BenchmarkResults"]) -> Optional["BenchmarkResults"]:
+        if not results:
+            return None
+
+        combined = BenchmarkResults()
+        combined.tables = sum(r.tables for r in results)
+        combined.ingest_rows = sum(r.ingest_rows for r in results)
+        combined.ingest_duration_second = max(
+            (r.ingest_duration_second for r in results), default=0
+        )
+        if combined.ingest_duration_second > 0:
+            combined.ingest_rows_per_second = (
+                combined.ingest_rows / combined.ingest_duration_second
+            )
+        combined.index_duration_second = max(
+            (r.index_duration_second for r in results), default=0
+        )
+        combined.total_queries = sum(r.total_queries for r in results)
+        combined.queries_per_second = sum(r.queries_per_second for r in results)
+
+        # Combine all latency measurements
+        for r in results:
+            combined.query_latencies.extend(r.query_latencies)
+            combined.ingest_latencies.extend(r.ingest_latencies)
+
+        # Calculate percentiles from combined measurements
+        combined._update_latencies(combined.query_latencies, "query")
+        combined._update_latencies(combined.ingest_latencies, "ingest")
+
+        return combined
+
+    def _update_latencies(self, latencies: list, type: str):
+        """
+        Update percentile values based on latency measurements.
+        Args:
+            latencies: List of latency measurements
+            type: Either "query" or "ingest"
+        """
+        if not latencies:
+            return
+
+        if type == "query":
+            self.query_latency_p50 = np.percentile(latencies, 50)
+            self.query_latency_p90 = np.percentile(latencies, 90)
+            self.query_latency_p95 = np.percentile(latencies, 95)
+            self.query_latency_p99 = np.percentile(latencies, 99)
+        elif type == "ingest":
+            self.ingest_latency_p50 = np.percentile(latencies, 50)
+            self.ingest_latency_p90 = np.percentile(latencies, 90)
+            self.ingest_latency_p95 = np.percentile(latencies, 95)
+            self.ingest_latency_p99 = np.percentile(latencies, 99)
+
+    def to_json(self) -> str:
+        return json.dumps(
+            {
+                "tables": self.tables,
+                "ingest_rows": self.ingest_rows,
+                "ingest_duration_second": self.ingest_duration_second,
+                "ingest_rows_per_second": self.ingest_rows_per_second,
+                "index_duration_second": self.index_duration_second,
+                "total_queries": self.total_queries,
+                "queries_per_second": self.queries_per_second,
+                "query_latencies": self.query_latencies,
+                "ingest_latencies": self.ingest_latencies,
+                "ingest_latency_p50": self.ingest_latency_p50,
+                "ingest_latency_p90": self.ingest_latency_p90,
+                "ingest_latency_p95": self.ingest_latency_p95,
+                "ingest_latency_p99": self.ingest_latency_p99,
+                "query_latency_p50": self.query_latency_p50,
+                "query_latency_p90": self.query_latency_p90,
+                "query_latency_p95": self.query_latency_p95,
+                "query_latency_p99": self.query_latency_p99,
+            }
+        )
+
+    @classmethod
+    def from_json(cls, json_str: Optional[str]) -> Optional["BenchmarkResults"]:
+        if json_str is None:
+            return None
+        try:
+            data = json.loads(json_str)
+            result = cls()
+            result.tables = data["tables"]
+            result.ingest_rows = data["ingest_rows"]
+            result.ingest_duration_second = data["ingest_duration_second"]
+            result.ingest_rows_per_second = data["ingest_rows_per_second"]
+            result.index_duration_second = data["index_duration_second"]
+            result.total_queries = data["total_queries"]
+            result.queries_per_second = data["queries_per_second"]
+            result.query_latencies = data["query_latencies"]
+            result.ingest_latencies = data["ingest_latencies"]
+            result.ingest_latency_p50 = data["ingest_latency_p50"]
+            result.ingest_latency_p90 = data["ingest_latency_p90"]
+            result.ingest_latency_p95 = data["ingest_latency_p95"]
+            result.ingest_latency_p99 = data["ingest_latency_p99"]
+            result.query_latency_p50 = data["query_latency_p50"]
+            result.query_latency_p90 = data["query_latency_p90"]
+            result.query_latency_p95 = data["query_latency_p95"]
+            result.query_latency_p99 = data["query_latency_p99"]
+            return result
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON results: {e}")
+            return None
+        except KeyError as e:
+            print(f"Missing key in results data: {e}")
+            return None
+
+    def print(self, update_latencies: bool = False):
+        print("\n=== Benchmark Results ===")
+        print(f"Number of tables: {self.tables}")
+        print("\nIngestion:")
+        print(f"  Total rows: {self.ingest_rows:,}")
+        print(f"  Duration: {self.ingest_duration_second:.1f}s")
+        print(f"  Rows/second: {self.ingest_rows_per_second:.1f}")
+        print("  Latencies per batch:")
+        print(f"    p50: {self.ingest_latency_p50:.2f}ms")
+        print(f"    p90: {self.ingest_latency_p90:.2f}ms")
+        print(f"    p95: {self.ingest_latency_p95:.2f}ms")
+        print(f"    p99: {self.ingest_latency_p99:.2f}ms")
+        print("\nIndexing:")
+        print(f"  Duration: {self.index_duration_second:.1f}s")
+        print("\nQueries:")
+        print(f"  Total queries: {self.total_queries}")
+        print(f"  Queries/second: {self.queries_per_second:.1f}")
+        print("  Latencies per query:")
+        print(f"    p50: {self.query_latency_p50:.2f}ms")
+        print(f"    p90: {self.query_latency_p90:.2f}ms")
+        print(f"    p95: {self.query_latency_p95:.2f}ms")
+        print(f"    p99: {self.query_latency_p99:.2f}ms")
+        print("\n=== Benchmark Results End ===")
