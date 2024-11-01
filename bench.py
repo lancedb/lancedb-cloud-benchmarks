@@ -370,6 +370,7 @@ class Benchmark:
         elif type == "ingest":
             self.results.ingest_latencies.extend(diffs)
 
+
 def run_benchmark(
     dataset: str,
     num_tables: int,

@@ -1,4 +1,5 @@
 import argparse
+import traceback
 from typing import Tuple
 from bench import Benchmark, add_benchmark_args
 from cloud.benchmark.util import BenchmarkResults
@@ -23,6 +24,7 @@ def run_benchmark_process(process_args: Tuple[int, int, dict]) -> str:
 
     except Exception as e:
         print(f"Process {process_id}, query {query_id} failed: {e}", file=sys.stderr)
+        print(traceback.format_exc(), file=sys.stderr)
         return None
 
 

@@ -98,7 +98,6 @@ class BenchmarkResults:
         self.index_duration_second = 0
         self.total_queries = 0
         self.queries_per_second = 0
-        # Add latency lists to store all measurements
         self.query_latencies = []
         self.ingest_latencies = []
         # Keep these for final results
@@ -226,7 +225,7 @@ class BenchmarkResults:
         print(f"  Total rows: {self.ingest_rows:,}")
         print(f"  Duration: {self.ingest_duration_second:.1f}s")
         print(f"  Rows/second: {self.ingest_rows_per_second:.1f}")
-        print("  Latencies:")
+        print("  Latencies per batch:")
         print(f"    p50: {self.ingest_latency_p50:.2f}ms")
         print(f"    p90: {self.ingest_latency_p90:.2f}ms")
         print(f"    p95: {self.ingest_latency_p95:.2f}ms")
@@ -236,7 +235,7 @@ class BenchmarkResults:
         print("\nQueries:")
         print(f"  Total queries: {self.total_queries}")
         print(f"  Queries/second: {self.queries_per_second:.1f}")
-        print("  Latencies:")
+        print("  Latencies per query:")
         print(f"    p50: {self.query_latency_p50:.2f}ms")
         print(f"    p90: {self.query_latency_p90:.2f}ms")
         print(f"    p95: {self.query_latency_p95:.2f}ms")
