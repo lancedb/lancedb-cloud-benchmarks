@@ -75,6 +75,12 @@ def add_benchmark_args(parser: argparse.ArgumentParser):
         action=argparse.BooleanOptionalAction,
         help="drop tables before starting",
     )
+    parser.add_argument(
+        "--rows",
+        type=int,
+        default=10000,
+        help="number of rows for the table",
+    )
 
 
 class Benchmark:
@@ -88,6 +94,7 @@ class Benchmark:
         index: bool,
         prefix: str,
         reset: bool,
+        rows: int,
     ):
         self.dataset = dataset
         self.num_tables = num_tables
@@ -97,6 +104,7 @@ class Benchmark:
         self.index = index
         self.prefix = prefix
         self.reset = reset
+        self.rows = rows
 
         self.db = lancedb.connect(
             uri=os.environ["LANCEDB_DB_URI"],
@@ -207,6 +215,10 @@ class Benchmark:
                 print(
                     f"{table.name}: added batch with size {len(slice)} in {elapsed}ms. rows in table: {table.count_rows()}"
                 )
+                if total_rows >= self.rows:
+                    break
+            if total_rows >= self.rows:
+                break
 
         total_s = int((time.time() - begin))
         print(
@@ -384,9 +396,10 @@ def run_benchmark(
     index: bool,
     prefix: str,
     reset: bool,
+    rows: int,
 ) -> BenchmarkResults:
     benchmark = Benchmark(
-        dataset, num_tables, batch_size, num_queries, ingest, index, prefix, reset
+        dataset, num_tables, batch_size, num_queries, ingest, index, prefix, reset, rows
     )
     return benchmark.run()
 
@@ -406,6 +419,7 @@ def main():
         args.index,
         args.prefix,
         args.reset,
+        args.rows,
     )
     result.print(True)
 
