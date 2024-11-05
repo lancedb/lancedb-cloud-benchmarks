@@ -1,6 +1,6 @@
 [project]
 name = "lancedb-cloud-benchmarks"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = [{ name = "LanceDB Devs", email = "dev@lancedb.com" }]
 readme = "README.md"
