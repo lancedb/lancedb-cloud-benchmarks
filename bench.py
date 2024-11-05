@@ -459,6 +459,11 @@ def validate_args(args: argparse.Namespace):
                 "Multiple query processes per table (query_process > 1) is only allowed "
                 "with --no-ingest and --no-index flags"
             )
+        if args.num_process > 1:
+            raise ValueError(
+                "Multiple query processes per table (query_process > 1) is only allowed "
+                "with --num-processes 1"
+            )
 
 
 def main():
@@ -478,7 +483,7 @@ def main():
         type=int,
         required=False,
         default=1,
-        help="Number of the query process per table. When this number is not 1, total process number becomes num_processes * query_process.",
+        help="Number of concurrent process to each query the given queries number (--queries) against the created tables. When this is used, --num-processes should be 1",
     )
     add_benchmark_args(parser)
     args = parser.parse_args()

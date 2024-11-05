@@ -101,4 +101,4 @@ Parameters:
 `--query-process 5`: Specifies that 5 processes will query the same table concurrently.
 `--no-ingest`: Skips the table creation step.
 `--no-index`: Skips the index creation step.
-`-q 10000`: Number of queries to run against each table
+`-q 10000`: Number of queries each process will run against each table
