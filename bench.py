@@ -361,7 +361,7 @@ class Benchmark:
         try:
             table.search(np.random.standard_normal(1536)).metric("cosine").nprobes(
                 nprobes
-            ).select(["openai", "title"]).to_list()
+            ).select(["openai", "title"]).to_arrow()
         except Exception as e:
             print(f"{table.name}: error during query: {e}")
 
