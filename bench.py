@@ -264,7 +264,7 @@ def _query_table(table: RemoteTable, num_queries: int, warmup_queries=100):
 
 def _query(table: RemoteTable, nprobes=1):
     try:
-        table.search(np.random.standard_normal(1536)).metric("cosine").nprobes(nprobes).select(["openai", "title"]).to_list()
+        table.search(np.random.standard_normal(1536)).metric("cosine").nprobes(nprobes).select(["openai", "title"]).to_arrow()
     except Exception as e:
         print(f"{table.name}: error during query: {e}")
 
