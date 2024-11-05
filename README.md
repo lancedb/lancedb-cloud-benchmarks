@@ -95,10 +95,10 @@ Parameters:
 Once the table is created, you can launch multiple processes to query against the same table.
 Each process will run 10,000 queries. Use the following command:
 ```
-uv run bench.py -t 1 -p my-prefix --no-ingest --no-index --query-process 5 -q 10000
+uv run bench.py -t 1 -p my-prefix --no-ingest --no-index --query-processes 5 -q 10000
 ```
 Parameters:
-`--query-process 5`: Specifies that 5 processes will query the same table concurrently.
+`--query-processes 5`: Specifies that 5 processes will query the same table concurrently.
 `--no-ingest`: Skips the table creation step.
 `--no-index`: Skips the index creation step.
 `-q 10000`: Number of queries each process will run against each table

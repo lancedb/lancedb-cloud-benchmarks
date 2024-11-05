@@ -401,7 +401,7 @@ def run_benchmark_process(process_args: Tuple[int, int, dict]) -> str:
 
 def run_multi_benchmark(
     num_processes: int,
-    query_process: int,
+    query_processes: int,
     dataset: str,
     num_tables: int,
     batch_size: int,
@@ -411,7 +411,9 @@ def run_multi_benchmark(
     prefix: str,
     reset: bool,
 ) -> BenchmarkResults:
-    total_processes = num_processes * (query_process if not ingest and not index else 1)
+    total_processes = num_processes * (
+        query_processes if not ingest and not index else 1
+    )
     print(f"Starting {total_processes} benchmark processes...")
 
     bench_kwargs = {
@@ -433,7 +435,7 @@ def run_multi_benchmark(
             process_args.append((i, 0, process_kwargs))
     else:
         for i in range(0, num_processes):
-            for j in range(0, query_process):
+            for j in range(0, query_processes):
                 process_kwargs = bench_kwargs.copy()
                 process_args.append((i, j, process_kwargs))
 
@@ -453,15 +455,15 @@ def run_multi_benchmark(
 
 
 def validate_args(args: argparse.Namespace):
-    if args.query_process > 1:
+    if args.query_processes > 1:
         if args.ingest or args.index:
             raise ValueError(
-                "Multiple query processes per table (query_process > 1) is only allowed "
+                "Multiple query processes per table (--query-processes > 1) is only allowed "
                 "with --no-ingest and --no-index flags"
             )
-        if args.num_process > 1:
+        if args.num_processes > 1:
             raise ValueError(
-                "Multiple query processes per table (query_process > 1) is only allowed "
+                "Multiple query processes per table (--query-processes > 1) is only allowed "
                 "with --num-processes 1"
             )
 
@@ -479,7 +481,7 @@ def main():
     )
     parser.add_argument(
         "-qn",
-        "--query-process",
+        "--query-processes",
         type=int,
         required=False,
         default=1,
@@ -492,7 +494,7 @@ def main():
 
     result = run_multi_benchmark(
         args.num_processes,
-        args.query_process,
+        args.query_processes,
         args.dataset,
         args.tables,
         args.batch,
