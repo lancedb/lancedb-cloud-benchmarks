@@ -17,6 +17,7 @@ import pyarrow as pa
 from datasets import load_dataset, DownloadConfig
 
 from cloud.benchmark.util import await_indices, BenchmarkResults
+from cloud.benchmark.query import QueryType, VectorQuery, FTSQuery
 
 
 def add_benchmark_args(parser: argparse.ArgumentParser):
@@ -48,6 +49,13 @@ def add_benchmark_args(parser: argparse.ArgumentParser):
         type=int,
         default=1000,
         help="number of queries to run against each table",
+    )
+    parser.add_argument(
+        "--query-type",
+        type=str,
+        choices=[qt.value for qt in QueryType],
+        default=QueryType.VECTOR.value,
+        help="type of query to run",
     )
     parser.add_argument(
         "--ingest",
@@ -87,6 +95,7 @@ class Benchmark:
         num_tables: int,
         batch_size: int,
         num_queries: int,
+        query_type: str,
         ingest: bool,
         index: bool,
         prefix: str,
@@ -107,6 +116,13 @@ class Benchmark:
             host_override=os.getenv("LANCEDB_HOST_OVERRIDE"),
             region=os.getenv("LANCEDB_REGION", "us-east-1"),
         )
+
+        if query_type == QueryType.VECTOR.value:
+            self.query_obj = VectorQuery()
+        elif query_type == QueryType.VECTOR_WITH_FILTER.value:
+            self.query_obj = VectorQuery(filter=True)
+        elif query_type == QueryType.FTS.value:
+            self.query_obj = FTSQuery()
 
         self.tables: List[RemoteTable] = []
         self.results = BenchmarkResults()
@@ -357,11 +373,9 @@ class Benchmark:
         self._add_percentiles("query", diffs)
         return qps
 
-    def _query(self, table: RemoteTable, nprobes=1):
+    def _query(self, table: RemoteTable):
         try:
-            table.search(np.random.standard_normal(1536)).metric("cosine").nprobes(
-                nprobes
-            ).select(["openai", "title"]).to_arrow()
+            self.query_obj.query(table)
         except Exception as e:
             print(f"{table.name}: error during query: {e}")
 
@@ -406,6 +420,7 @@ def run_multi_benchmark(
     num_tables: int,
     batch_size: int,
     num_queries: int,
+    query_type: str,
     ingest: bool,
     index: bool,
     prefix: str,
@@ -421,6 +436,7 @@ def run_multi_benchmark(
         "num_tables": num_tables,
         "batch_size": batch_size,
         "num_queries": num_queries,
+        "query_type": query_type,
         "ingest": ingest,
         "index": index,
         "prefix": prefix,  # Base prefix, will be modified per process
@@ -499,6 +515,7 @@ def main():
         args.tables,
         args.batch,
         args.queries,
+        args.query_type,
         args.ingest,
         args.index,
         args.prefix,
