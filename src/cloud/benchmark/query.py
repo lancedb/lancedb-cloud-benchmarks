@@ -84,7 +84,7 @@ class VectorQuery(Query):
 
         if self.filter:
             filter_text = random.choice(self.words)
-            query = query.where(f"title LIKE '%{filter_text}%'")
+            query = query.where(f"text LIKE '%{filter_text}%'", prefilter=True)
 
         return (
             query.metric(self.metric)
