@@ -55,7 +55,7 @@ def add_benchmark_args(parser: argparse.ArgumentParser):
         type=str,
         choices=[qt.value for qt in QueryType],
         default=QueryType.VECTOR.value,
-        help="type of query to run (vector or fts)",
+        help="type of query to run",
     )
     parser.add_argument(
         "--ingest",
@@ -119,6 +119,8 @@ class Benchmark:
 
         if query_type == QueryType.VECTOR.value:
             self.query_obj = VectorQuery()
+        elif query_type == QueryType.VECTOR_WITH_FILTER.value:
+            self.query_obj = VectorQuery(filter=True)
         elif query_type == QueryType.FTS.value:
             self.query_obj = FTSQuery()
 
@@ -356,13 +358,13 @@ class Benchmark:
             f"{table.name}: starting query test. {self.num_queries=} {warmup_queries=} {total_rows=}"
         )
         for _ in range(warmup_queries):
-            self._query(table)
+            self._query(table, total_rows)
 
         diffs = []
         begin = time.time()
         for _ in range(self.num_queries):
             start_time = time.time()
-            self._query(table)
+            self._query(table, total_rows)
             elapsed = int((time.time() - start_time) * 1000)
             diffs.append(elapsed)
         total_s = max(int(time.time() - begin), 1)
@@ -371,9 +373,9 @@ class Benchmark:
         self._add_percentiles("query", diffs)
         return qps
 
-    def _query(self, table: RemoteTable):
+    def _query(self, table: RemoteTable, total_rows=None):
         try:
-            self.query_obj.query(table)
+            self.query_obj.query(table, total_rows)
         except Exception as e:
             print(f"{table.name}: error during query: {e}")
 
