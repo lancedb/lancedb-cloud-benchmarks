@@ -358,13 +358,13 @@ class Benchmark:
             f"{table.name}: starting query test. {self.num_queries=} {warmup_queries=} {total_rows=}"
         )
         for _ in range(warmup_queries):
-            self._query(table, total_rows)
+            self._query(table)
 
         diffs = []
         begin = time.time()
         for _ in range(self.num_queries):
             start_time = time.time()
-            self._query(table, total_rows)
+            self._query(table)
             elapsed = int((time.time() - start_time) * 1000)
             diffs.append(elapsed)
         total_s = max(int(time.time() - begin), 1)
@@ -373,9 +373,9 @@ class Benchmark:
         self._add_percentiles("query", diffs)
         return qps
 
-    def _query(self, table: RemoteTable, total_rows=None):
+    def _query(self, table: RemoteTable):
         try:
-            self.query_obj.query(table, total_rows)
+            self.query_obj.query(table)
         except Exception as e:
             print(f"{table.name}: error during query: {e}")
 

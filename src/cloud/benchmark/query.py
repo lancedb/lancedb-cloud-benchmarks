@@ -6,6 +6,43 @@ from typing import Any, List
 from lancedb.remote.table import RemoteTable
 import numpy as np
 
+QUERY_WORDS = [
+    # Common nouns
+    "University",
+    "Institute",
+    "School",
+    "Museum",
+    "Library",
+    "History",
+    "Science",
+    "Art",
+    "Literature",
+    "Philosophy",
+    # Locations
+    "America",
+    "Europe",
+    "Asia",
+    "China",
+    "India",
+    "Japan",
+    "Russia",
+    "Germany",
+    "France",
+    "England",
+    # Organizations
+    "Company",
+    "Corporation",
+    "Association",
+    "Society",
+    "Foundation",
+    # Fields
+    "Technology",
+    "Engineering",
+    "Medicine",
+    "Economics",
+    "Politics",
+]
+
 
 class QueryType(Enum):
     VECTOR = "vector"
@@ -26,6 +63,7 @@ class Query(ABC):
 class VectorQuery(Query):
     def __init__(
         self,
+        words: List[str] = None,
         dim: int = 1536,
         metric: str = "cosine",
         nprobes: int = 1,
@@ -33,6 +71,7 @@ class VectorQuery(Query):
         limit: int = 1,
         filter: bool = False,
     ):
+        self.words = words or QUERY_WORDS
         self.dim = dim
         self.metric = metric
         self.nprobes = nprobes
@@ -41,22 +80,19 @@ class VectorQuery(Query):
         self.filter = filter
 
     def query(self, table: RemoteTable, **kwargs) -> Any:
-        query = (
-            table.search(np.random.standard_normal(self.dim))
-            .metric(self.metric)
+        query = table.search(np.random.standard_normal(self.dim))
+
+        if self.filter:
+            filter_text = random.choice(self.words)
+            query = query.where(f"title LIKE '%{filter_text}%'")
+
+        return (
+            query.metric(self.metric)
             .nprobes(self.nprobes)
+            .select(self.selected_columns)
+            .limit(self.limit)
+            .to_arrow()
         )
-
-        if self.filter and "total_rows" in kwargs:
-            total_rows = kwargs["total_rows"]
-            random_value = random.randint(0, total_rows)
-
-            if random_value < total_rows // 2:
-                query = query.where(f"_id > {random_value}")
-            else:
-                query = query.where(f"_id < {random_value}")
-
-        return query.select(self.selected_columns).limit(self.limit).to_arrow()
 
 
 class FTSQuery(Query):
@@ -69,42 +105,7 @@ class FTSQuery(Query):
         selected_columns: List[str] = None,
         limit: int = 1,
     ):
-        self.words = words or [
-            # Common nouns
-            "University",
-            "Institute",
-            "School",
-            "Museum",
-            "Library",
-            "History",
-            "Science",
-            "Art",
-            "Literature",
-            "Philosophy",
-            # Locations
-            "America",
-            "Europe",
-            "Asia",
-            "China",
-            "India",
-            "Japan",
-            "Russia",
-            "Germany",
-            "France",
-            "England",
-            # Organizations
-            "Company",
-            "Corporation",
-            "Association",
-            "Society",
-            "Foundation",
-            # Fields
-            "Technology",
-            "Engineering",
-            "Medicine",
-            "Economics",
-            "Politics",
-        ]
+        self.words = words or QUERY_WORDS
         self.column = column
         self.selected_columns = selected_columns or ["title"]
         self.limit = limit
