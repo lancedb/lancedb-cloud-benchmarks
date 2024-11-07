@@ -86,6 +86,14 @@ def add_benchmark_args(parser: argparse.ArgumentParser):
         action=argparse.BooleanOptionalAction,
         help="drop tables before starting",
     )
+    parser.add_argument(
+        "-w",
+        "--warmup",
+        type=bool,
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help="whether to run warmup runs before the actual benchmarking",
+    )
 
 
 class Benchmark:
@@ -483,6 +491,54 @@ def validate_args(args: argparse.Namespace):
                 "with --num-processes 1"
             )
 
+def run_multi_benchmark_with_warmup(
+    num_processes: int,
+    query_processes: int,
+    dataset: str,
+    num_tables: int,
+    batch_size: int,
+    num_queries: int,
+    query_type: str,
+    ingest: bool,
+    index: bool,
+    prefix: str,
+    reset: bool,
+    warmup: bool,
+):
+    if warmup:
+        print("Running warmup benchmark...")
+        run_multi_benchmark(
+            num_processes,
+            query_processes,
+            dataset,
+            num_tables,
+            batch_size,
+            num_queries,
+            query_type,
+            ingest,
+            index,
+            prefix,
+            reset,
+        )
+        print("Warmup benchmark completed.")
+
+    print("Running benchmark...")
+    benchmark_results = run_multi_benchmark(
+        num_processes,
+        query_processes,
+        dataset,
+        num_tables,
+        batch_size,
+        num_queries,
+        query_type,
+        ingest,
+        index,
+        prefix,
+        reset,
+    )
+    print("Benchmark completed.")
+    benchmark_results.print()
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -508,7 +564,7 @@ def main():
     validate_args(args)
     print(args)
 
-    result = run_multi_benchmark(
+    run_multi_benchmark_with_warmup(
         args.num_processes,
         args.query_processes,
         args.dataset,
@@ -520,9 +576,8 @@ def main():
         args.index,
         args.prefix,
         args.reset,
+        args.warmup
     )
-
-    result.print()
 
 
 if __name__ == "__main__":
