@@ -517,7 +517,7 @@ def run_multi_benchmark_with_warmup(
             query_type,
             ingest,
             index,
-            prefix,
+            prefix + "-warmup",
             reset,
         )
         print("Warmup benchmark completed.")
