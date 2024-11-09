@@ -123,6 +123,8 @@ class Benchmark:
             api_key=os.environ["LANCEDB_API_KEY"],
             host_override=os.getenv("LANCEDB_HOST_OVERRIDE"),
             region=os.getenv("LANCEDB_REGION", "us-east-1"),
+            connection_timeout = 1200.0,
+            read_timeout = 30000.0,
         )
 
         if query_type == QueryType.VECTOR.value:
@@ -281,10 +283,13 @@ class Benchmark:
         # create the indices - these will be created async
         table_indices = {}
         for t in self.tables:
+            print("creating vector index")
             t.create_index(
                 metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
             )
+            print("creating scalar index")
             t.create_scalar_index("id", index_type="BTREE")
+            print("creating fts index")
             t.create_fts_index("title")
             table_indices[t] = ["IVF_PQ", "FTS", "BTREE"]
 
