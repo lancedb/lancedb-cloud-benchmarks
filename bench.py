@@ -86,6 +86,12 @@ def add_benchmark_args(parser: argparse.ArgumentParser):
         action=argparse.BooleanOptionalAction,
         help="drop tables before starting",
     )
+    parser.add_argument(
+        "-w",
+        "--warmup-queries",
+        type=int,
+        help="Number of warmup queries to run against each table to help the cluster warm up. Defaults to the number of queries.",
+    )
 
 
 class Benchmark:
@@ -100,6 +106,7 @@ class Benchmark:
         index: bool,
         prefix: str,
         reset: bool,
+        warmup_queries: int,
     ):
         self.dataset = dataset
         self.num_tables = num_tables
@@ -109,6 +116,7 @@ class Benchmark:
         self.index = index
         self.prefix = prefix
         self.reset = reset
+        self.warmup_queries = warmup_queries
 
         self.db = lancedb.connect(
             uri=os.environ["LANCEDB_DB_URI"],
@@ -340,7 +348,7 @@ class Benchmark:
         for b in buffer:
             yield b
 
-    def _query_table(self, table: RemoteTable, warmup_queries=100):
+    def _query_table(self, table: RemoteTable):
         # log a warning if data is not fully indexed
         try:
             total_rows = table.count_rows()
@@ -355,9 +363,9 @@ class Benchmark:
             print(f"{table.name}: failed to check index status: {e}")
 
         print(
-            f"{table.name}: starting query test. {self.num_queries=} {warmup_queries=} {total_rows=}"
+            f"{table.name}: starting query test. {self.num_queries=} {self.warmup_queries=} {total_rows=}"
         )
-        for _ in range(warmup_queries):
+        for _ in range(self.warmup_queries):
             self._query(table)
 
         diffs = []
@@ -425,12 +433,13 @@ def run_multi_benchmark(
     index: bool,
     prefix: str,
     reset: bool,
+    warmup_queries: int,
 ) -> BenchmarkResults:
     total_processes = num_processes * (
         query_processes if not ingest and not index else 1
     )
     print(f"Starting {total_processes} benchmark processes...")
-
+    warmup_queries = min(warmup_queries, num_queries)
     bench_kwargs = {
         "dataset": dataset,
         "num_tables": num_tables,
@@ -441,6 +450,7 @@ def run_multi_benchmark(
         "index": index,
         "prefix": prefix,  # Base prefix, will be modified per process
         "reset": reset,
+        "warmup_queries": warmup_queries,
     }
 
     process_args = []
@@ -506,6 +516,8 @@ def main():
     add_benchmark_args(parser)
     args = parser.parse_args()
     validate_args(args)
+    if args.warmup_queries is None:
+        args.warmup_queries = args.queries
     print(args)
 
     result = run_multi_benchmark(
@@ -520,6 +532,7 @@ def main():
         args.index,
         args.prefix,
         args.reset,
+        args.warmup_queries,
     )
 
     result.print()
