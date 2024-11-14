@@ -226,11 +226,18 @@ class Benchmark:
         add_times = []
         begin = time.time()
         total_rows = 0
+        indexed = False
         for batch in self._convert_dataset(table.schema):
             for slice in self._split_record_batch(batch, self.batch_size):
                 start_time = time.time()
                 self._add_batch(table, slice)
                 total_rows += len(slice)
+                if total_rows > 10000 and not indexed:
+                    table.create_index(
+                        metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
+                    )
+                    print(f"{table.name}: created vector index")
+                    indexed = True
                 elapsed = int((time.time() - start_time) * 1000)
                 add_times.append(elapsed)
                 print(
@@ -283,10 +290,10 @@ class Benchmark:
         # create the indices - these will be created async
         table_indices = {}
         for t in self.tables:
-            print("creating vector index")
-            t.create_index(
-                metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
-            )
+            #print("creating vector index")
+            # t.create_index(
+            #     metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
+            # )
             print("creating scalar index")
             t.create_scalar_index("id", index_type="BTREE")
             print("creating fts index")
