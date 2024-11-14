@@ -126,15 +126,15 @@ class HybridQuery(Query):
 
     def __init__(
         self,
-        text_query: List[str] = None,
-        vector_query: List[float] = None,
+        words: List[str] = None,
         metric: str = "cosine",
         column: str = "text",
+        dim: int = 1536,
         selected_columns: List[str] = None,
         limit: int = 1,
     ):
-        self.text_query = text_query
-        self.vector_query = vector_query
+        self.words = words or QUERY_WORDS
+        self.dim = dim
         self.metric = metric
         self.column = column
         self.selected_columns = selected_columns or ["openai", "title"]
