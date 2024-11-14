@@ -17,7 +17,7 @@ import pyarrow as pa
 from datasets import load_dataset, DownloadConfig
 
 from cloud.benchmark.util import await_indices, BenchmarkResults
-from cloud.benchmark.query import QueryType, VectorQuery, FTSQuery
+from cloud.benchmark.query import QueryType, VectorQuery, FTSQuery, HybridQuery
 
 
 def add_benchmark_args(parser: argparse.ArgumentParser):
@@ -123,6 +123,8 @@ class Benchmark:
             self.query_obj = VectorQuery(filter=True)
         elif query_type == QueryType.FTS.value:
             self.query_obj = FTSQuery()
+        elif query_type == QueryType.HYBRID.value:
+            self.query_obj = HybridQuery()
 
         self.tables: List[RemoteTable] = []
         self.results = BenchmarkResults()

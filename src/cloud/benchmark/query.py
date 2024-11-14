@@ -4,6 +4,7 @@ import random
 from typing import Any, List
 
 from lancedb.remote.table import RemoteTable
+from lancedb.rerankers import RRFReranker
 import numpy as np
 
 QUERY_WORDS = [
@@ -114,6 +115,40 @@ class FTSQuery(Query):
         query_text = random.choice(self.words)
         return (
             table.search(query_text, query_type="fts")
+            .select(self.selected_columns)
+            .limit(self.limit)
+            .to_arrow()
+        )
+
+
+class HybridQuery(Query):
+    """Simple hybrid search implementation"""
+
+    def __init__(
+        self,
+        text_query: List[str] = None,
+        vector_query: List[float] = None,
+        metric: str = "cosine",
+        column: str = "text",
+        selected_columns: List[str] = None,
+        limit: int = 1,
+    ):
+        self.text_query = text_query
+        self.vector_query = vector_query
+        self.metric = metric
+        self.column = column
+        self.selected_columns = selected_columns or ["openai", "title"]
+        self.limit = limit
+
+    def query(self, table: RemoteTable, **kwargs) -> Any:
+        text_query = random.choice(self.words)
+        vector_query = np.random.standard_normal(self.dim)
+        reranker = RRFReranker()
+        return (
+            table.search(query_type="hybrid")
+            .vector(vector_query)
+            .text(text_query)
+            .rerank(reranker)
             .select(self.selected_columns)
             .limit(self.limit)
             .to_arrow()
