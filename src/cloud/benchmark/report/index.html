@@ -136,9 +136,9 @@
                 {{name}}
                 p: {{process}} <br/><br/>
 
-                {% for name, table in process.tables.items() %}
+                {% for name, table in process['tables'].items() %}
                 <tr>
-                    <td>{{table.name}}</td>
+                    <td>{{name}}</td>
                     <td>{{table.ingest_percentiles_ms}}</td>
                     <td>{{table.query_percentiles_ms}}</td>
                 </tr>
