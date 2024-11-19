@@ -86,6 +86,18 @@ def add_benchmark_args(parser: argparse.ArgumentParser):
         action=argparse.BooleanOptionalAction,
         help="drop tables before starting",
     )
+    parser.add_argument(
+        "--start-row",
+        type=int,
+        default=0,
+        help="ingestion start rows",
+    )
+    parser.add_argument(
+        "--end-row",
+        type=int,
+        default=1000000,
+        help="ingestion end rows",
+    )
 
 
 class Benchmark:
@@ -100,6 +112,8 @@ class Benchmark:
         index: bool,
         prefix: str,
         reset: bool,
+        start_row: int,
+        end_row: int,
     ):
         self.dataset = dataset
         self.num_tables = num_tables
@@ -109,6 +123,8 @@ class Benchmark:
         self.index = index
         self.prefix = prefix
         self.reset = reset
+        self.start_row = start_row
+        self.end_row = end_row
 
         self.db = lancedb.connect(
             uri=os.environ["LANCEDB_DB_URI"],
@@ -220,14 +236,15 @@ class Benchmark:
         total_rows = 0
         for batch in self._convert_dataset(table.schema):
             for slice in self._split_record_batch(batch, self.batch_size):
-                start_time = time.time()
-                self._add_batch(table, slice)
+                if total_rows > self.start_row and total_rows < self.end_row:
+                    start_time = time.time()
+                    self._add_batch(table, slice)
+                    elapsed = int((time.time() - start_time) * 1000)
+                    add_times.append(elapsed)
+                    print(
+                        f"{table.name}: added batch with size {len(slice)} in {elapsed}ms. rows in table: {table.count_rows()}"
+                    )
                 total_rows += len(slice)
-                elapsed = int((time.time() - start_time) * 1000)
-                add_times.append(elapsed)
-                print(
-                    f"{table.name}: added batch with size {len(slice)} in {elapsed}ms. rows in table: {table.count_rows()}"
-                )
 
         total_s = int((time.time() - begin))
         print(
@@ -275,12 +292,12 @@ class Benchmark:
         # create the indices - these will be created async
         table_indices = {}
         for t in self.tables:
-            t.create_index(
-                metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
-            )
-            t.create_scalar_index("id", index_type="BTREE")
+            # t.create_index(
+            #     metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
+            # )
+            # t.create_scalar_index("id", index_type="BTREE")
             t.create_fts_index("title")
-            table_indices[t] = ["IVF_PQ", "FTS", "BTREE"]
+            table_indices[t] = ["FTS"]
 
         print("waiting for index completion...")
         start = time.time()
@@ -427,6 +444,8 @@ def run_multi_benchmark(
     index: bool,
     prefix: str,
     reset: bool,
+    start_row: int,
+    end_row: int,
 ) -> BenchmarkResults:
     total_processes = num_processes * (
         query_processes if not ingest and not index else 1
@@ -443,6 +462,8 @@ def run_multi_benchmark(
         "index": index,
         "prefix": prefix,  # Base prefix, will be modified per process
         "reset": reset,
+        "start_row": start_row,
+        "end_row": end_row,
     }
 
     process_args = []
@@ -522,6 +543,8 @@ def main():
         args.index,
         args.prefix,
         args.reset,
+        args.start_row,
+        args.end_row,
     )
 
     result.print()
