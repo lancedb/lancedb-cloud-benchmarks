@@ -8,7 +8,21 @@ def get_default_args():
     parser = argparse.ArgumentParser()
     add_benchmark_args(parser)
     default_args = parser.parse_args([])
-    return vars(default_args)
+    args_dict = vars(default_args)
+
+    # Map parser argument names to Benchmark parameter names
+    return {
+        "dataset": args_dict["dataset"],
+        "num_tables": args_dict["tables"],
+        "batch_size": args_dict["batch"],
+        "num_queries": args_dict["queries"],
+        "query_type": args_dict["query_type"],
+        "ingest": args_dict["ingest"],
+        "index": args_dict["index"],
+        "prefix": args_dict["prefix"],
+        "reset": args_dict["reset"],
+        "size": args_dict["size"],
+    }
 
 
 def run_benchmark(benchmark_args: dict) -> None:
