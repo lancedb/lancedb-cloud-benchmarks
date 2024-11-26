@@ -86,6 +86,13 @@ def add_benchmark_args(parser: argparse.ArgumentParser):
         action=argparse.BooleanOptionalAction,
         help="drop tables before starting",
     )
+    parser.add_argument(
+        "-s",
+        "--size",
+        type=int,
+        default=None,
+        help="number of rows to ingest (no limit if not specified)",
+    )
 
 
 class Benchmark:
@@ -100,6 +107,7 @@ class Benchmark:
         index: bool,
         prefix: str,
         reset: bool,
+        size: int = None,
     ):
         self.dataset = dataset
         self.num_tables = num_tables
@@ -109,6 +117,7 @@ class Benchmark:
         self.index = index
         self.prefix = prefix
         self.reset = reset
+        self.size = size
 
         self.db = lancedb.connect(
             uri=os.environ["LANCEDB_DB_URI"],
@@ -316,7 +325,10 @@ class Benchmark:
 
         buffer = []
         buffer_rows = 0
+        total_converted_rows = 0
         for batch in batch_iterator:
+            if self.size is not None and total_converted_rows >= self.size:
+                break
             rb = pa.RecordBatch.from_arrays(
                 [
                     batch["_id"],
@@ -334,10 +346,12 @@ class Benchmark:
                 )[0]
                 buffer.clear()
                 buffer_rows = 0
+                total_converted_rows += len(combined)
                 yield combined
             else:
                 buffer.append(rb)
                 buffer_rows += len(rb)
+                total_converted_rows += len(rb)
 
         for b in buffer:
             yield b
@@ -427,6 +441,7 @@ def run_multi_benchmark(
     index: bool,
     prefix: str,
     reset: bool,
+    size: int,
 ) -> BenchmarkResults:
     total_processes = num_processes * (
         query_processes if not ingest and not index else 1
@@ -443,6 +458,7 @@ def run_multi_benchmark(
         "index": index,
         "prefix": prefix,  # Base prefix, will be modified per process
         "reset": reset,
+        "size": size,
     }
 
     process_args = []
@@ -522,6 +538,7 @@ def main():
         args.index,
         args.prefix,
         args.reset,
+        args.size,
     )
 
     result.print()
