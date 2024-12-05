@@ -7,6 +7,7 @@ from concurrent.futures import wait
 import traceback
 from typing import Iterable, List, Tuple
 import multiprocessing as mp
+import backoff
 
 from lancedb.remote.errors import LanceDBClientError
 from lancedb.remote.table import RemoteTable
@@ -280,15 +281,48 @@ class Benchmark:
             f"{table.name}: {index_type} indexing completed in {int(time.time() - start_time)}s."
         )
 
+    @backoff.on_exception(
+        backoff.constant,
+        LanceDBClientError,
+        max_time=6000,
+        interval=10,
+        logger=None,
+        giveup=lambda e: "Commit conflict for version" not in str(e),
+    )
+    def create_vector_index(self, table):
+        table.create_index(
+            metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
+        )
+
+    @backoff.on_exception(
+        backoff.constant,
+        LanceDBClientError,
+        max_time=6000,
+        interval=10,
+        logger=None,
+        giveup=lambda e: "Commit conflict for version" not in str(e),
+    )
+    def create_scalar_index(self, table):
+        table.create_scalar_index("id", index_type="BTREE")
+
+    @backoff.on_exception(
+        backoff.constant,
+        LanceDBClientError,
+        max_time=6000,
+        interval=10,
+        logger=None,
+        giveup=lambda e: "Commit conflict for version" not in str(e),
+    )
+    def create_fts_index(self, table):
+        table.create_fts_index("title")
+
     def _create_indices(self):
         # create the indices - these will be created async
         table_indices = {}
         for t in self.tables:
-            t.create_index(
-                metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
-            )
-            t.create_scalar_index("id", index_type="BTREE")
-            t.create_fts_index("title")
+            self.create_vector_index(t)
+            self.create_scalar_index(t)
+            self.create_fts_index(t)
             table_indices[t] = ["IVF_PQ", "FTS", "BTREE"]
 
         print("waiting for index completion...")
