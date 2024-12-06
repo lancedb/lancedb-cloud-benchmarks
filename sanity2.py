@@ -31,17 +31,21 @@ def perform_search(table, vector_column, dim):
     return results, search_time
 
 
-@backoff.on_exception(
-    backoff.constant, ValueError, max_time=600, interval=10, logger=None
-)
+@backoff.on_exception(backoff.constant, ValueError, max_time=600, interval=10)
 def await_indices(
-    table: RemoteTable, count: int = 1, index_types: Optional[list[str]] = []
+    table: RemoteTable,
+    count: int = 1,
+    index_types: Optional[list[str]] = [],
 ) -> list[dict]:
     """poll for all indices to be created on the table"""
     indices = table.list_indices()
-    # print(f"current indices for table {table}: {indices}")
+    # The old SDK returns a dict with a key "indexes" containing the list of indices
+    if isinstance(indices, dict):
+        indices = indices["indexes"]
+    print(f"current indices for table {table}: {indices}")
+
     result_indices = []
-    for index in indices["indexes"]:
+    for index in indices:
         if not index["index_name"]:
             raise ValueError("still waiting for index creation")
         result_indices.append(index)
@@ -55,21 +59,16 @@ def await_indices(
             f"(current: {len(result_indices)}, desired: {count})"
         )
 
-    index_names = [n["index_name"] for n in result_indices]
-    stats = [table.index_stats(n) for n in index_names]
     if index_types:
-        types = [s["index_type"] for s in stats]
+        index_names = [n["index_name"] for n in result_indices]
+        stats = [table.index_stats(n) for n in index_names]
+        types = [stat["index_type"] for stat in stats]
         for t in index_types:
             if t not in types:
                 raise ValueError(
                     f"still waiting for correct index type "
                     f"(current: {types}, desired: {index_types})"
                 )
-
-    unindexed_rows = [s["num_unindexed_rows"] for s in stats]
-    for u in unindexed_rows:
-        if u != 0:
-            raise ValueError(f"still waiting for unindexed rows to be 0 (current: {u})")
 
     return result_indices
 

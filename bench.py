@@ -313,7 +313,7 @@ class Benchmark:
         logger=None,
         giveup=lambda e: "Commit conflict for version" not in str(e),
     )
-    def create_fts_index(self, table):
+    def create_fts_index(self, table: RemoteTable):
         table.create_fts_index("title")
 
     def _create_indices(self):
@@ -394,7 +394,7 @@ class Benchmark:
         # log a warning if data is not fully indexed
         try:
             total_rows = table.count_rows()
-            for idx in table.list_indices()["indexes"]:
+            for idx in table.list_indices():
                 stats = table.index_stats(idx["index_name"])
                 if total_rows != stats["num_indexed_rows"]:
                     print(
