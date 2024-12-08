@@ -7,6 +7,8 @@ import backoff
 from lancedb.remote.table import RemoteTable
 import os
 
+import pyarrow
+
 # Constants
 VECTOR_DIM = 1024
 TABLE_ROWS = 1000
@@ -75,11 +77,18 @@ def await_indices(
 
 def main(table_name):
     # Connect to the database
+    azure_account_name = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
+    storage_options = None
+    if azure_account_name:
+        print("Using Azure Storage")
+        storage_options = {"azure_storage_account_name": azure_account_name}
+
     db = lancedb.connect(
         uri=os.environ["LANCEDB_DB_URI"],
         api_key=os.environ["LANCEDB_API_KEY"],
         host_override=os.getenv("LANCEDB_HOST_OVERRIDE"),
         region=os.getenv("LANCEDB_REGION", "us-east-1"),
+        storage_options=storage_options,
     )
 
     if table_name in db.table_names():
@@ -107,28 +116,40 @@ def main(table_name):
     table.add(update_data)
     print(f"Added {UPDATE_ROWS} new rows")
 
-    # Perform multiple searches on both vector columns
-    vector_configs = [
-        ("vector", VECTOR_DIM),
-    ]
+    # TODO wait for PE changes
+    # # Perform multiple searches on both vector columns
+    # vector_configs = [
+    #     ("vector", VECTOR_DIM),
+    # ]
 
-    for vector_column, dim in vector_configs:
-        print(
-            f"\nPerforming {SEARCH_TIMES} searches on {vector_column} (dimension: {dim}):"
-        )
-        total_search_time = 0
+    # for vector_column, dim in vector_configs:
+    #     print(
+    #         f"\nPerforming {SEARCH_TIMES} searches on {vector_column} (dimension: {dim}):"
+    #     )
+    #     total_search_time = 0
 
-        for i in range(SEARCH_TIMES):
-            results, search_time = perform_search(table, vector_column, dim)
-            total_search_time += search_time
-            print(f"\nSearch {i+1} results ({vector_column}):")
-            print(f"Search time: {search_time:.4f} seconds")
+    #     for i in range(SEARCH_TIMES):
+    #         results, search_time = perform_search(table, vector_column, dim)
+    #         total_search_time += search_time
+    #         print(f"\nSearch {i+1} results ({vector_column}):")
+    #         print(f"Search time: {search_time:.4f} seconds")
 
-        average_search_time = total_search_time / SEARCH_TIMES
-        print(
-            f"\nAverage search time for {vector_column}: {average_search_time:.4f} seconds"
-        )
-
+    #     average_search_time = total_search_time / SEARCH_TIMES
+    #     print(
+    #         f"\nAverage search time for {vector_column}: {average_search_time:.4f} seconds"
+    #     )
+    table.drop_columns(["id"])
+    current_version = table.version()
+    if "id" in table.schema().names:
+        raise RuntimeError("Failed to drop id column")
+    
+    table.checkout(current_version - 1)
+    if "id" not in table.schema().names:
+        raise RuntimeError("Previous version missing id column")
+    table.checkout(current_version)
+    if "id" in table.schema().names:
+        raise RuntimeError("Failed to drop id column")
+    
     db.drop_table(table_name)
 
 

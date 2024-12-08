@@ -7,7 +7,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "datasets",
-    "lancedb==0.17.0b3",
+    "lancedb==0.17.0",
     "tqdm",
     "pyarrow",
     "backoff"
@@ -21,3 +21,7 @@ dev-dependencies = [
 [[tool.uv.index]]
 name = "fury"
 url = "https://pypi.fury.io/lancedb/"
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"

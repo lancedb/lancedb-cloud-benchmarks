@@ -120,11 +120,18 @@ class Benchmark:
         self.reset = reset
         self.size = size
 
+        azure_account_name = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
+        storage_options = None
+        if azure_account_name:
+            print("Using Azure Storage")
+            storage_options = {"azure_storage_account_name": azure_account_name}
+
         self.db = lancedb.connect(
             uri=os.environ["LANCEDB_DB_URI"],
             api_key=os.environ["LANCEDB_API_KEY"],
             host_override=os.getenv("LANCEDB_HOST_OVERRIDE"),
             region=os.getenv("LANCEDB_REGION", "us-east-1"),
+            storage_options=storage_options,
         )
 
         if query_type == QueryType.VECTOR.value:
