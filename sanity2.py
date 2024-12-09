@@ -2,7 +2,6 @@ from typing import Optional
 import lancedb
 import numpy as np
 import time
-import sys
 import backoff
 from lancedb.remote.table import RemoteTable
 import os
@@ -75,11 +74,17 @@ def await_indices(
 
 def main(table_name):
     # Connect to the database
+    azure_account_name = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
+    storage_options = None
+    if azure_account_name:
+        storage_options = {"azure_storage_account_name": azure_account_name}
+
     db = lancedb.connect(
         uri=os.environ["LANCEDB_DB_URI"],
         api_key=os.environ["LANCEDB_API_KEY"],
         host_override=os.getenv("LANCEDB_HOST_OVERRIDE"),
         region=os.getenv("LANCEDB_REGION", "us-east-1"),
+        storage_options=storage_options,
     )
 
     if table_name in db.table_names():
@@ -107,6 +112,8 @@ def main(table_name):
     table.add(update_data)
     print(f"Added {UPDATE_ROWS} new rows")
 
+    table.create_index()
+
     # Perform multiple searches on both vector columns
     vector_configs = [
         ("vector", VECTOR_DIM),
@@ -128,14 +135,9 @@ def main(table_name):
         print(
             f"\nAverage search time for {vector_column}: {average_search_time:.4f} seconds"
         )
-
     db.drop_table(table_name)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python script_name.py <table_name>")
-        sys.exit(1)
-
-    table_name = sys.argv[1]
+    table_name = f"sanity2-test-{int(time.time())}"
     main(table_name)
