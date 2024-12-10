@@ -7,7 +7,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "datasets",
-    "lancedb==0.17.1b1",
+    "lancedb",
     "tqdm",
     "pyarrow",
     "backoff"
