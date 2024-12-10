@@ -112,8 +112,6 @@ def main(table_name):
     table.add(update_data)
     print(f"Added {UPDATE_ROWS} new rows")
 
-    table.create_index()
-
     # Perform multiple searches on both vector columns
     vector_configs = [
         ("vector", VECTOR_DIM),
