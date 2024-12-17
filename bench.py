@@ -230,7 +230,6 @@ class Benchmark:
             )
 
     def _ingest_table(self, table: RemoteTable) -> int:
-        # todo: support batch size > 1000
         add_times = []
         begin = time.time()
         total_rows = 0
