@@ -512,19 +512,20 @@ def run_multi_benchmark(
                 process_kwargs = bench_kwargs.copy()
                 process_args.append((i, j, process_kwargs))
 
-    with mp.Pool(processes=total_processes) as pool:
-        process_results = pool.map(run_benchmark_process, process_args)
+    if total_processes > 1:
+        with mp.Pool(processes=total_processes) as pool:
+            process_results = pool.map(run_benchmark_process, process_args)
+    else:
+        process_results = run_benchmark_process(process_args[0])
 
-        successful_results = [
-            BenchmarkResults.from_json(r) for r in process_results if r is not None
-        ]
-
-        if not successful_results:
-            raise RuntimeError(
-                "All benchmark processes failed - check logs for details"
-            )
-
-        return BenchmarkResults.combine(successful_results)
+    successful_results = [
+        BenchmarkResults.from_json(r) for r in process_results if r is not None
+    ]
+    if not successful_results:
+        raise RuntimeError(
+            "All benchmark processes failed - check logs for details"
+        )
+    return BenchmarkResults.combine(successful_results)
 
 
 def validate_args(args: argparse.Namespace):
