@@ -6,10 +6,10 @@ authors = [{ name = "LanceDB Devs", email = "dev@lancedb.com" }]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "lancedb>=0.17",
+    "pyarrow>=18.1",
     "datasets",
-    "lancedb",
     "tqdm",
-    "pyarrow",
     "backoff"
 ]
 

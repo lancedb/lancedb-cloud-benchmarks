@@ -5,7 +5,7 @@ import sys
 import time
 from concurrent.futures import wait
 import traceback
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Tuple, Optional
 import multiprocessing as mp
 
 from lancedb.remote.errors import LanceDBClientError
@@ -163,8 +163,9 @@ class Benchmark:
                     table_name,
                     schema=schema,
                 )
-            except LanceDBClientError as e:
+            except Exception as e:
                 if "already exists" in str(e):
+                    print(f"Reusing existing table {table_name}. Use --reset to reset table data")
                     table = self.db.open_table(table_name)
                 else:
                     raise
@@ -394,7 +395,7 @@ class Benchmark:
             self.results.ingest_latencies.extend(diffs)
 
 
-def run_benchmark_process(process_args: Tuple[int, int, dict]) -> str:
+def run_benchmark_process(process_args: Tuple[int, int, dict]) -> Optional[str]:
     """Run a single benchmark process
     Args:
         process_args: Tuple of (process_id, query_id, results, bench_kwargs)
@@ -457,19 +458,21 @@ def run_multi_benchmark(
                 process_kwargs = bench_kwargs.copy()
                 process_args.append((i, j, process_kwargs))
 
-    with mp.Pool(processes=total_processes) as pool:
-        process_results = pool.map(run_benchmark_process, process_args)
+    if total_processes > 1:
+        with mp.Pool(processes=total_processes) as pool:
+            process_results = pool.map(run_benchmark_process, process_args)
+    else:
+        process_results = [run_benchmark_process(process_args[0])]
 
-        successful_results = [
-            BenchmarkResults.from_json(r) for r in process_results if r is not None
-        ]
+    successful_results = [
+        BenchmarkResults.from_json(r) for r in process_results if r is not None
+    ]
+    if not successful_results:
+        raise RuntimeError(
+            "All benchmark processes failed - check logs for details"
+        )
 
-        if not successful_results:
-            raise RuntimeError(
-                "All benchmark processes failed - check logs for details"
-            )
-
-        return BenchmarkResults.combine(successful_results)
+    return BenchmarkResults.combine(successful_results)
 
 
 def validate_args(args: argparse.Namespace):
