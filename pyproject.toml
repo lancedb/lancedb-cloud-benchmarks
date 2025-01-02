@@ -1,6 +1,6 @@
 [project]
 name = "lancedb-cloud-benchmarks"
-version = "0.1.2"
+version = "0.1.3"
 description = ""
 authors = [{ name = "LanceDB Devs", email = "dev@lancedb.com" }]
 readme = "README.md"
@@ -14,5 +14,14 @@ dependencies = [
 ]
 
 [tool.uv]
+prerelease = "allow"
 dev-dependencies = [
 ]
+
+[[tool.uv.index]]
+name = "fury"
+url = "https://pypi.fury.io/lancedb/"
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"

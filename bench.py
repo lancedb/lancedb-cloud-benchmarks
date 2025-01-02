@@ -7,6 +7,7 @@ from concurrent.futures import wait
 import traceback
 from typing import Iterable, List, Tuple, Optional
 import multiprocessing as mp
+import backoff
 
 from lancedb.remote.errors import LanceDBClientError
 from lancedb.remote.table import RemoteTable
@@ -86,6 +87,13 @@ def add_benchmark_args(parser: argparse.ArgumentParser):
         action=argparse.BooleanOptionalAction,
         help="drop tables before starting",
     )
+    parser.add_argument(
+        "-s",
+        "--size",
+        type=int,
+        default=None,
+        help="number of rows to ingest (no limit if not specified)",
+    )
 
 
 class Benchmark:
@@ -100,6 +108,7 @@ class Benchmark:
         index: bool,
         prefix: str,
         reset: bool,
+        size: int = None,
     ):
         self.dataset = dataset
         self.num_tables = num_tables
@@ -109,12 +118,19 @@ class Benchmark:
         self.index = index
         self.prefix = prefix
         self.reset = reset
+        self.size = size
+
+        azure_account_name = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
+        storage_options = None
+        if azure_account_name:
+            storage_options = {"azure_storage_account_name": azure_account_name}
 
         self.db = lancedb.connect(
             uri=os.environ["LANCEDB_DB_URI"],
             api_key=os.environ["LANCEDB_API_KEY"],
             host_override=os.getenv("LANCEDB_HOST_OVERRIDE"),
             region=os.getenv("LANCEDB_REGION", "us-east-1"),
+            storage_options=storage_options,
         )
 
         if query_type == QueryType.VECTOR.value:
@@ -272,15 +288,48 @@ class Benchmark:
             f"{table.name}: {index_type} indexing completed in {int(time.time() - start_time)}s."
         )
 
+    @backoff.on_exception(
+        backoff.constant,
+        LanceDBClientError,
+        max_time=6000,
+        interval=10,
+        logger=None,
+        giveup=lambda e: "Commit conflict for version" not in str(e),
+    )
+    def create_vector_index(self, table):
+        table.create_index(
+            metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
+        )
+
+    @backoff.on_exception(
+        backoff.constant,
+        LanceDBClientError,
+        max_time=6000,
+        interval=10,
+        logger=None,
+        giveup=lambda e: "Commit conflict for version" not in str(e),
+    )
+    def create_scalar_index(self, table):
+        table.create_scalar_index("id", index_type="BTREE")
+
+    @backoff.on_exception(
+        backoff.constant,
+        LanceDBClientError,
+        max_time=6000,
+        interval=10,
+        logger=None,
+        giveup=lambda e: "Commit conflict for version" not in str(e),
+    )
+    def create_fts_index(self, table: RemoteTable):
+        table.create_fts_index("title")
+
     def _create_indices(self):
         # create the indices - these will be created async
         table_indices = {}
         for t in self.tables:
-            t.create_index(
-                metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
-            )
-            t.create_scalar_index("id", index_type="BTREE")
-            t.create_fts_index("title")
+            self.create_vector_index(t)
+            self.create_scalar_index(t)
+            self.create_fts_index(t)
             table_indices[t] = ["IVF_PQ", "FTS", "BTREE"]
 
         print("waiting for index completion...")
@@ -317,7 +366,10 @@ class Benchmark:
 
         buffer = []
         buffer_rows = 0
+        total_converted_rows = 0
         for batch in batch_iterator:
+            if self.size is not None and total_converted_rows >= self.size:
+                break
             rb = pa.RecordBatch.from_arrays(
                 [
                     batch["_id"],
@@ -335,10 +387,12 @@ class Benchmark:
                 )[0]
                 buffer.clear()
                 buffer_rows = 0
+                total_converted_rows += len(combined)
                 yield combined
             else:
                 buffer.append(rb)
                 buffer_rows += len(rb)
+                total_converted_rows += len(rb)
 
         for b in buffer:
             yield b
@@ -347,7 +401,7 @@ class Benchmark:
         # log a warning if data is not fully indexed
         try:
             total_rows = table.count_rows()
-            for idx in table.list_indices()["indexes"]:
+            for idx in table.list_indices():
                 stats = table.index_stats(idx["index_name"])
                 if total_rows != stats["num_indexed_rows"]:
                     print(
@@ -428,6 +482,7 @@ def run_multi_benchmark(
     index: bool,
     prefix: str,
     reset: bool,
+    size: int,
 ) -> BenchmarkResults:
     total_processes = num_processes * (
         query_processes if not ingest and not index else 1
@@ -444,6 +499,7 @@ def run_multi_benchmark(
         "index": index,
         "prefix": prefix,  # Base prefix, will be modified per process
         "reset": reset,
+        "size": size,
     }
 
     process_args = []
@@ -525,6 +581,7 @@ def main():
         args.index,
         args.prefix,
         args.reset,
+        args.size,
     )
 
     result.print()
