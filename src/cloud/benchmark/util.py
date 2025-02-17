@@ -17,7 +17,7 @@ def await_indices(
 ) -> list[dict]:
     """poll for all indices to be created on the table"""
     indices = table.list_indices()
-    # print(f"current indices for table {table}: {indices}")
+    #print(f"current indices for table {table}: {indices}")
     result_indices = []
     for index in indices["indexes"]:
         if not index["index_name"]:

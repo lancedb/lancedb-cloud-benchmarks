@@ -20,14 +20,18 @@ Further metrics can be gathered by the [LanceDB team](mailto:contact@lancedb.com
 
 Note: on some systems, you may need to install clang (i.e. `sudo yum install clang`)
 
-2. Configure environment
+2. Install dependencies
+
+`uv pip install .`
+
+3. Configure environment
 ```
 export LANCEDB_API_KEY=<your api key>`
 export LANCEDB_DB_URI=<your db uri from lancedb cloud console, i.e. "db://mydb-d5ac3e">`
 export LANCEDB_HOST_OVERRIDE=<optional uri if using lancedb enterprise>`
 ```
 
-3. Run the benchmark
+4Run the benchmark
 
 `uv run bench.py`
 

@@ -345,17 +345,18 @@ class Benchmark:
 
     def _query_table(self, table: RemoteTable, warmup_queries=100):
         # log a warning if data is not fully indexed
-        try:
-            total_rows = table.count_rows()
-            for idx in table.list_indices()["indexes"]:
-                stats = table.index_stats(idx["index_name"])
-                if total_rows != stats["num_indexed_rows"]:
-                    print(
-                        f"{table.name}: warning: indexing is not complete, query performance may be degraded. "
-                        f"total rows: {total_rows} index: {stats}"
-                    )
-        except Exception as e:
-            print(f"{table.name}: failed to check index status: {e}")
+        total_rows = table.count_rows()
+        list_resp = table.list_indices()
+        not_indexed = len(list_resp) != 3
+        for idx in list_resp:
+            stats = table.index_stats(idx["index_name"])
+            if total_rows == stats["num_indexed_rows"]:
+                not_indexed = False
+        if not_indexed:
+            print(
+                f"{table.name}: warning: indexing is not complete, query performance may be degraded. "
+                f"total rows: {total_rows}. indices: {list_resp}"
+            )
 
         print(
             f"{table.name}: starting query test. {self.num_queries=} {warmup_queries=} {total_rows=}"
@@ -491,22 +492,22 @@ def validate_args(args: argparse.Namespace):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         "-n",
         "--num-processes",
         type=int,
         required=False,
         default=1,
-        help="Number of total benchmark process. This number should be the same for data ingestion and data querying.",
+        help="Total number of benchmark processes. Each process will ingest and query independent tables in parallel.",
     )
-    parser.add_argument(
+    group.add_argument(
         "-qn",
         "--query-processes",
         type=int,
         required=False,
         default=1,
-        help="Number of concurrent process to each query the given queries number (--queries) against the created tables. When this is used, --num-processes should be 1",
+        help="Number of concurrent processes to execute queries against the same set of created tables.",
     )
     add_benchmark_args(parser)
     args = parser.parse_args()
