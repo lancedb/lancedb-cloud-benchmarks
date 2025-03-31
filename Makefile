@@ -1,9 +1,9 @@
 lint:
-	uv run ruff check
-	uv run ruff format --check .
+	uv run --index-strategy unsafe-best-match -- ruff check
+	uv run --index-strategy unsafe-best-match -- ruff format --check .
 .PHONY: lint
 
 fix:
-	uv run ruff check --fix
-	uv run ruff format .
+	uv run --index-strategy unsafe-best-match -- ruff check --fix
+	uv run --index-strategy unsafe-best-match -- ruff format .
 .PHONY: fix

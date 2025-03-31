@@ -19,7 +19,10 @@ def await_indices(
     indices = table.list_indices()
     #print(f"current indices for table {table}: {indices}")
     result_indices = []
-    for index in indices["indexes"]:
+    # The old SDK returns a dict with a key "indexes" containing the list of indices
+    if isinstance(indices, dict):
+        indices = indices["indexes"]
+    for index in indices:
         if not index["index_name"]:
             raise ValueError("still waiting for index creation")
         result_indices.append(index)

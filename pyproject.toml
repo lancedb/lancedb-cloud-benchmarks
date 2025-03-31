@@ -6,7 +6,7 @@ authors = [{ name = "LanceDB Devs", email = "dev@lancedb.com" }]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "lancedb>=0.17",
+    "lancedb>=0.21",
     "pyarrow>=18.1",
     "datasets",
     "tqdm",
@@ -14,5 +14,14 @@ dependencies = [
 ]
 
 [tool.uv]
+prerelease = "allow"
 dev-dependencies = [
 ]
+
+[[tool.uv.index]]
+name = "fury"
+url = "https://pypi.fury.io/lancedb/"
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
