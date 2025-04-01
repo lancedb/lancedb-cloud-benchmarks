@@ -22,7 +22,9 @@ Note: on some systems, you may need to install clang (i.e. `sudo yum install cla
 
 2. Install dependencies
 
-`uv pip install .`
+```
+uv pip install . --index-strategy unsafe-best-match
+```
 
 3. Configure environment
 ```
