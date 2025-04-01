@@ -31,7 +31,7 @@ export LANCEDB_DB_URI=<your db uri from lancedb cloud console, i.e. "db://mydb-d
 export LANCEDB_HOST_OVERRIDE=<optional uri if using lancedb enterprise>`
 ```
 
-4Run the benchmark
+4. Run the benchmark
 
 `uv run bench.py`
 
