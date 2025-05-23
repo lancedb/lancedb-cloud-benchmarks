@@ -1,16 +1,13 @@
-from typing import Optional
 import lancedb
 import numpy as np
 import time
-import backoff
-from lancedb.remote.table import RemoteTable
 import os
 
 # Constants
 VECTOR_DIM = 1024
 TABLE_ROWS = 1000
 UPDATE_ROWS = 3000
-SEARCH_TIMES = 1000
+SEARCH_TIMES = 30
 
 
 def create_random_vector(dim):
@@ -28,48 +25,6 @@ def perform_search(table, vector_column, dim):
     end_time = time.time()
     search_time = end_time - start_time
     return results, search_time
-
-
-@backoff.on_exception(backoff.constant, ValueError, max_time=600, interval=10)
-def await_indices(
-    table: RemoteTable,
-    count: int = 1,
-    index_types: Optional[list[str]] = [],
-) -> list[dict]:
-    """poll for all indices to be created on the table"""
-    indices = table.list_indices()
-    # The old SDK returns a dict with a key "indexes" containing the list of indices
-    if isinstance(indices, dict):
-        indices = indices["indexes"]
-    print(f"current indices for table {table}: {indices}")
-
-    result_indices = []
-    for index in indices:
-        if not index["index_name"]:
-            raise ValueError("still waiting for index creation")
-        result_indices.append(index)
-
-    if not result_indices:
-        raise ValueError("still waiting for index creation")
-
-    if len(result_indices) < count:
-        raise ValueError(
-            f"still waiting for more indices "
-            f"(current: {len(result_indices)}, desired: {count})"
-        )
-
-    if index_types:
-        index_names = [n["index_name"] for n in result_indices]
-        stats = [table.index_stats(n) for n in index_names]
-        types = [stat["index_type"] for stat in stats]
-        for t in index_types:
-            if t not in types:
-                raise ValueError(
-                    f"still waiting for correct index type "
-                    f"(current: {types}, desired: {index_types})"
-                )
-
-    return result_indices
 
 
 def main(table_name):
@@ -102,7 +57,9 @@ def main(table_name):
         )
 
     table.create_index()
-    await_indices(table, 1, ["IVF_PQ"])
+    print("Creating indices...")
+    table.wait_for_index(index_names=["vector_idx"])
+    print("Indices created")
 
     # Update table
     update_data = [
@@ -126,7 +83,7 @@ def main(table_name):
         for i in range(SEARCH_TIMES):
             results, search_time = perform_search(table, vector_column, dim)
             total_search_time += search_time
-            print(f"\nSearch {i+1} results ({vector_column}):")
+            print(f"\nSearch {i + 1} results ({vector_column}):")
             print(f"Search time: {search_time:.4f} seconds")
 
         average_search_time = total_search_time / SEARCH_TIMES

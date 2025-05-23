@@ -9,6 +9,7 @@ from typing import Iterable, List, Tuple, Optional
 import multiprocessing as mp
 import backoff
 
+from lancedb.remote.errors import LanceDBClientError
 from lancedb.remote.table import RemoteTable
 
 import lancedb
