@@ -4,50 +4,7 @@ from typing import List, Optional
 
 import numpy as np
 
-import backoff
-from lancedb.remote.table import RemoteTable
 import json
-
-
-@backoff.on_exception(backoff.constant, ValueError, max_time=600, interval=10)
-def await_indices(
-    table: RemoteTable,
-    count: int = 1,
-    index_types: Optional[list[str]] = [],
-) -> list[dict]:
-    """poll for all indices to be created on the table"""
-    indices = table.list_indices()
-    # The old SDK returns a dict with a key "indexes" containing the list of indices
-    if isinstance(indices, dict):
-        indices = indices["indexes"]
-
-    result_indices = []
-    for index in indices:
-        if not index["index_name"]:
-            raise ValueError("still waiting for index creation")
-        result_indices.append(index)
-
-    if not result_indices:
-        raise ValueError("still waiting for index creation")
-
-    if len(result_indices) < count:
-        raise ValueError(
-            f"still waiting for more indices "
-            f"(current: {len(result_indices)}, desired: {count})"
-        )
-
-    if index_types:
-        index_names = [n["index_name"] for n in result_indices]
-        stats = [table.index_stats(n) for n in index_names]
-        types = [stat["index_type"] for stat in stats]
-        for t in index_types:
-            if t not in types:
-                raise ValueError(
-                    f"still waiting for correct index type "
-                    f"(current: {types}, desired: {index_types})"
-                )
-
-    return result_indices
 
 
 def log_timer(func, log_func=print):

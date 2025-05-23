@@ -5,11 +5,10 @@ import sys
 import time
 from concurrent.futures import wait
 import traceback
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Tuple, Optional
 import multiprocessing as mp
 import backoff
 
-from lancedb.remote.errors import LanceDBClientError
 from lancedb.remote.table import RemoteTable
 
 import lancedb
@@ -17,7 +16,7 @@ import numpy as np
 import pyarrow as pa
 from datasets import load_dataset, DownloadConfig
 
-from cloud.benchmark.util import await_indices, BenchmarkResults
+from cloud.benchmark.util import BenchmarkResults
 from cloud.benchmark.query import QueryType, VectorQuery, FTSQuery, HybridQuery
 
 
@@ -125,6 +124,10 @@ class Benchmark:
         if azure_account_name:
             storage_options = {"azure_storage_account_name": azure_account_name}
 
+        azure_account_name = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
+        storage_options = None
+        if azure_account_name:
+            storage_options = {"azure_storage_account_name": azure_account_name}
         self.db = lancedb.connect(
             uri=os.environ["LANCEDB_DB_URI"],
             api_key=os.environ["LANCEDB_API_KEY"],
@@ -179,8 +182,11 @@ class Benchmark:
                     table_name,
                     schema=schema,
                 )
-            except LanceDBClientError as e:
+            except Exception as e:
                 if "already exists" in str(e):
+                    print(
+                        f"Reusing existing table {table_name}. Use --reset to reset table data"
+                    )
                     table = self.db.open_table(table_name)
                 else:
                     raise
@@ -280,10 +286,10 @@ class Benchmark:
                 f"completed {total_queries} queries on {num_tables} tables. average: {total_qps:.1f}QPS"
             )
 
-    def _await_index(self, table: RemoteTable, index_type: str, start_time):
-        await_indices(table, 1, [index_type])
+    def _await_index(self, table: RemoteTable, index_names: Iterable[str], start_time):
+        table.wait_for_index(index_names)
         print(
-            f"{table.name}: {index_type} indexing completed in {int(time.time() - start_time)}s."
+            f"{table.name}: {index_names} indexing completed in {int(time.time() - start_time)}s."
         )
 
     @backoff.on_exception(
@@ -325,10 +331,12 @@ class Benchmark:
         # create the indices - these will be created async
         table_indices = {}
         for t in self.tables:
-            self.create_vector_index(t)
-            self.create_scalar_index(t)
-            self.create_fts_index(t)
-            table_indices[t] = ["IVF_PQ", "FTS", "BTREE"]
+            t.create_index(
+                metric="cosine", vector_column_name="openai", index_type="IVF_PQ"
+            )
+            t.create_scalar_index("id", index_type="BTREE")
+            t.create_fts_index("title")
+            table_indices[t] = ["openai_idx", "id_idx", "title_idx"]
 
         print("waiting for index completion...")
         start = time.time()
@@ -339,10 +347,9 @@ class Benchmark:
         ) as executor:
             futures = []
             for table, indices in table_indices.items():
-                for index in indices:
-                    futures.append(
-                        executor.submit(self._await_index, table, index, start)
-                    )
+                futures.append(
+                    executor.submit(self._await_index, table, indices, start)
+                )
             try:
                 wait(futures)
             except Exception as e:
@@ -397,17 +404,18 @@ class Benchmark:
 
     def _query_table(self, table: RemoteTable, warmup_queries=100):
         # log a warning if data is not fully indexed
-        try:
-            total_rows = table.count_rows()
-            for idx in table.list_indices():
-                stats = table.index_stats(idx["index_name"])
-                if total_rows != stats["num_indexed_rows"]:
-                    print(
-                        f"{table.name}: warning: indexing is not complete, query performance may be degraded. "
-                        f"total rows: {total_rows} index: {stats}"
-                    )
-        except Exception as e:
-            print(f"{table.name}: failed to check index status: {e}")
+        total_rows = table.count_rows()
+        list_resp = table.list_indices()
+        not_indexed = len(list_resp) != 3
+        for idx in list_resp:
+            stats = table.index_stats(idx["index_name"])
+            if total_rows == stats["num_indexed_rows"]:
+                not_indexed = False
+        if not_indexed:
+            print(
+                f"{table.name}: warning: indexing is not complete, query performance may be degraded. "
+                f"total rows: {total_rows}. indices: {list_resp}"
+            )
 
         print(
             f"{table.name}: starting query test. {self.num_queries=} {warmup_queries=} {total_rows=}"
@@ -424,7 +432,7 @@ class Benchmark:
             diffs.append(elapsed)
         total_s = max(int(time.time() - begin), 1)
         qps = self.num_queries / total_s
-        print(f"{table.name}: query count: {self.num_queries} average: {qps :.1f}QPS")
+        print(f"{table.name}: query count: {self.num_queries} average: {qps:.1f}QPS")
         self._add_percentiles("query", diffs)
         return qps
 
@@ -447,7 +455,7 @@ class Benchmark:
             self.results.ingest_latencies.extend(diffs)
 
 
-def run_benchmark_process(process_args: Tuple[int, int, dict]) -> str:
+def run_benchmark_process(process_args: Tuple[int, int, dict]) -> Optional[str]:
     """Run a single benchmark process
     Args:
         process_args: Tuple of (process_id, query_id, results, bench_kwargs)
@@ -516,15 +524,14 @@ def run_multi_benchmark(
         with mp.Pool(processes=total_processes) as pool:
             process_results = pool.map(run_benchmark_process, process_args)
     else:
-        process_results = run_benchmark_process(process_args[0])
+        process_results = [run_benchmark_process(process_args[0])]
 
     successful_results = [
         BenchmarkResults.from_json(r) for r in process_results if r is not None
     ]
     if not successful_results:
-        raise RuntimeError(
-            "All benchmark processes failed - check logs for details"
-        )
+        raise RuntimeError("All benchmark processes failed - check logs for details")
+
     return BenchmarkResults.combine(successful_results)
 
 
@@ -544,22 +551,22 @@ def validate_args(args: argparse.Namespace):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         "-n",
         "--num-processes",
         type=int,
         required=False,
         default=1,
-        help="Number of total benchmark process. This number should be the same for data ingestion and data querying.",
+        help="Total number of benchmark processes. Each process will ingest and query independent tables in parallel.",
     )
-    parser.add_argument(
+    group.add_argument(
         "-qn",
         "--query-processes",
         type=int,
         required=False,
         default=1,
-        help="Number of concurrent process to each query the given queries number (--queries) against the created tables. When this is used, --num-processes should be 1",
+        help="Number of concurrent processes to execute queries against the same set of created tables.",
     )
     add_benchmark_args(parser)
     args = parser.parse_args()
