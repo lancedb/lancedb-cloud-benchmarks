@@ -8,7 +8,6 @@ import traceback
 from typing import Iterable, List, Tuple, Optional
 import multiprocessing as mp
 
-from lancedb.remote.errors import LanceDBClientError
 from lancedb.remote.table import RemoteTable
 
 import lancedb
@@ -16,7 +15,7 @@ import numpy as np
 import pyarrow as pa
 from datasets import load_dataset, DownloadConfig
 
-from cloud.benchmark.util import await_indices, BenchmarkResults
+from cloud.benchmark.util import BenchmarkResults
 from cloud.benchmark.query import QueryType, VectorQuery, FTSQuery, HybridQuery
 
 
@@ -170,7 +169,9 @@ class Benchmark:
                 )
             except Exception as e:
                 if "already exists" in str(e):
-                    print(f"Reusing existing table {table_name}. Use --reset to reset table data")
+                    print(
+                        f"Reusing existing table {table_name}. Use --reset to reset table data"
+                    )
                     table = self.db.open_table(table_name)
                 else:
                     raise
@@ -271,10 +272,10 @@ class Benchmark:
                 f"completed {total_queries} queries on {num_tables} tables. average: {total_qps:.1f}QPS"
             )
 
-    def _await_index(self, table: RemoteTable, index_type: str, start_time):
-        await_indices(table, 1, [index_type])
+    def _await_index(self, table: RemoteTable, index_names: Iterable[str], start_time):
+        table.wait_for_index(index_names)
         print(
-            f"{table.name}: {index_type} indexing completed in {int(time.time() - start_time)}s."
+            f"{table.name}: {index_names} indexing completed in {int(time.time() - start_time)}s."
         )
 
     def _create_indices(self):
@@ -286,7 +287,7 @@ class Benchmark:
             )
             t.create_scalar_index("id", index_type="BTREE")
             t.create_fts_index("title")
-            table_indices[t] = ["IVF_PQ", "FTS", "BTREE"]
+            table_indices[t] = ["openai_idx", "id_idx", "title_idx"]
 
         print("waiting for index completion...")
         start = time.time()
@@ -297,10 +298,9 @@ class Benchmark:
         ) as executor:
             futures = []
             for table, indices in table_indices.items():
-                for index in indices:
-                    futures.append(
-                        executor.submit(self._await_index, table, index, start)
-                    )
+                futures.append(
+                    executor.submit(self._await_index, table, indices, start)
+                )
             try:
                 wait(futures)
             except Exception as e:
@@ -378,7 +378,7 @@ class Benchmark:
             diffs.append(elapsed)
         total_s = max(int(time.time() - begin), 1)
         qps = self.num_queries / total_s
-        print(f"{table.name}: query count: {self.num_queries} average: {qps :.1f}QPS")
+        print(f"{table.name}: query count: {self.num_queries} average: {qps:.1f}QPS")
         self._add_percentiles("query", diffs)
         return qps
 
@@ -474,9 +474,7 @@ def run_multi_benchmark(
         BenchmarkResults.from_json(r) for r in process_results if r is not None
     ]
     if not successful_results:
-        raise RuntimeError(
-            "All benchmark processes failed - check logs for details"
-        )
+        raise RuntimeError("All benchmark processes failed - check logs for details")
 
     return BenchmarkResults.combine(successful_results)
 
