@@ -34,7 +34,7 @@ def run_benchmark(benchmark_args: dict) -> None:
 
 def main():
     # Setting for sanity runs
-    batch_size = 500
+    batch_size = 100
     dataset_size = 2000
     num_queries = 3  # Number of queries per run
 
